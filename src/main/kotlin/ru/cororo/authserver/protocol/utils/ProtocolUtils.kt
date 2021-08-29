@@ -111,3 +111,10 @@ fun Output.writeByteArray(array: ByteArray) {
     writeVarInt(array.size)
     writeFully(array)
 }
+
+fun Output.writeStringArray(array: Array<String>) {
+    writeVarInt(array.size)
+    array.forEach {
+        writeString(it)
+    }
+}

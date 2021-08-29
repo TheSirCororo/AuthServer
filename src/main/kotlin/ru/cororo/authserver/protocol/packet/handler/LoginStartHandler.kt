@@ -17,7 +17,7 @@ object LoginStartHandler : PacketHandler<ServerboundLoginStartPacket> {
         session.protocol.state = MinecraftProtocol.ProtocolState.GAME
         session.sendPacket(
             ClientboundLoginEncryptionPacket(
-                AuthServer.serverId,
+                "",
                 AuthServer.keys.first.encoded,
                 generateVerifyToken(session).toByteArray()
             )

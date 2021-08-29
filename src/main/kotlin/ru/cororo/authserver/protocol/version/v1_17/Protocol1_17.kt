@@ -67,7 +67,9 @@ class Protocol1_17 : MinecraftProtocol(inbound = { packet ->
             serverbound(0x01, ServerboundLoginEncryptionResponsePacket)
         }
 
-        game {  }
+        game {
+            clientbound(0x26, ClientboundGameJoinPacket)
+        }
     }
 
     override fun toString(): String {

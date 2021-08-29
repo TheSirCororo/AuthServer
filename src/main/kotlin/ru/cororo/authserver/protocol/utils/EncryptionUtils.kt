@@ -2,20 +2,21 @@ package ru.cororo.authserver.protocol.utils
 
 import org.bouncycastle.asn1.ASN1InputStream
 import org.bouncycastle.asn1.ASN1Primitive
-import org.bouncycastle.asn1.ASN1String
 import org.bouncycastle.asn1.DERApplicationSpecific
-import org.bouncycastle.crypto.encodings.PKCS1Encoding
-import org.bouncycastle.jcajce.provider.asymmetric.rsa.CipherSpi
 import org.bouncycastle.util.io.pem.PemObject
 import org.bouncycastle.util.io.pem.PemWriter
+import org.jetbrains.annotations.Nullable
 import ru.cororo.authserver.session.MinecraftSession
 import java.io.ByteArrayInputStream
-import java.io.InputStream
 import java.io.StringWriter
+import java.io.UnsupportedEncodingException
 import java.security.*
+import javax.crypto.*
+import javax.crypto.spec.SecretKeySpec
 
 
-val verifyTokens = mutableMapOf<MinecraftSession, String>()
+val verifyTokens = mutableMapOf<MinecraftSession, ByteArray>()
+
 fun generateRSAKeyPair(): Pair<PublicKey, PrivateKey> {
     val keyGen = KeyPairGenerator.getInstance("RSA")
     keyGen.initialize(1024)
@@ -55,9 +56,47 @@ private fun Key.getPemObject(): PemObject {
     return PemObject(type, encoded)
 }
 
+fun decryptByteToSecretKey(privateKey: PrivateKey, bytes: ByteArray): SecretKey {
+    return SecretKeySpec(decryptUsingKey(privateKey, bytes), "AES")
+}
+
+fun decryptUsingKey(key: Key, bytes: ByteArray): ByteArray {
+    return cipherData(2, key, bytes)
+}
+
+private fun cipherData(mode: Int, key: Key, data: ByteArray): ByteArray {
+    return setupCipher(mode, key.algorithm, key)!!.doFinal(data)
+}
+
+private fun setupCipher(mode: Int, transformation: String, key: Key): Cipher? {
+    val cipher4 = Cipher.getInstance(transformation)
+    cipher4.init(mode, key)
+    return cipher4
+}
+
+fun digestData(data: String, publicKey: PublicKey, secretKey: SecretKey): ByteArray? {
+    return try {
+        digestData("SHA-1", data.toByteArray(charset("ISO_8859_1")), secretKey.encoded, publicKey.encoded)
+    } catch (e: UnsupportedEncodingException) {
+        null
+    }
+}
+
+private fun digestData(algorithm: String, vararg data: ByteArray): ByteArray? {
+    return try {
+        val digest = MessageDigest.getInstance(algorithm)
+        for (bytes in data) {
+            digest.update(bytes)
+        }
+        digest.digest()
+    } catch (e: NoSuchAlgorithmException) {
+        null
+    }
+}
+
 fun generateVerifyToken(session: MinecraftSession): String {
     val token = generate4CharsRandomString()
-    verifyTokens[session] = token
+    verifyTokens[session] = token.toByteArray()
     return token
 }
 
