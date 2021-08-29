@@ -8,13 +8,14 @@ import ru.cororo.authserver.protocol.MinecraftProtocol
 import ru.cororo.authserver.protocol.protocol
 import java.net.InetSocketAddress
 
-class MinecraftSession(
+data class MinecraftSession(
     val connection: Connection,
     val sendChannel: Channel<Any>,
     val protocolVersion: Int,
-    val address: InetSocketAddress
+    val address: InetSocketAddress,
 ) {
-    val protocol get() = MinecraftProtocol.defaultProtocol
+    lateinit var username: String
+    val protocol get() = protocol(protocolVersion)
 
     fun sendPacket(packet: Any) {
         println("Sending packet $packet")

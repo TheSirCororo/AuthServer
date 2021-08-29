@@ -27,6 +27,7 @@ val motd = """
 
 @ExperimentalUnsignedTypes
 class Protocol1_17 : MinecraftProtocol(inbound = { packet ->
+    logger.info("receive packet: $packet")
     when (packet) {
         is ServerboundHandshakePacket -> {
             context.protocol.state = ProtocolState[packet.nextState]
@@ -42,7 +43,6 @@ class Protocol1_17 : MinecraftProtocol(inbound = { packet ->
             LoginEncryption.handle(this.context, packet)
         }
     }
-    logger.info("receive packet: $packet")
 }) {
     init {
         handshake {

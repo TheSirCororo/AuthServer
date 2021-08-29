@@ -5,5 +5,5 @@ import ru.cororo.authserver.session.MinecraftSession
 interface PacketHandler<out T> {
     val packetClass: Class<out T>
 
-    fun handle(session: MinecraftSession, packet: @UnsafeVariance T)
+    suspend fun handle(session: MinecraftSession, packet: @UnsafeVariance T)
 }

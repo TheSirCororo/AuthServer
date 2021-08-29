@@ -14,7 +14,7 @@ data class ClientboundStatusPongPacket(
         }
 
         override fun read(input: Input): ClientboundStatusPongPacket {
-            return ClientboundStatusPongPacket(input.readLong())
+            return ClientboundStatusPongPacket(0L)
         }
     }
 }

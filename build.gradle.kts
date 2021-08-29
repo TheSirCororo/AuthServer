@@ -24,6 +24,7 @@ dependencies {
 
     implementation("io.ktor:ktor-server-core:$ktor_version")
     implementation("io.ktor:ktor-server-netty:$ktor_version")
+    implementation("io.ktor:ktor-client-cio:$ktor_version")
     implementation("io.ktor:ktor-network:$ktor_version")
     implementation("ch.qos.logback:logback-classic:$logback_version")
     implementation("org.bouncycastle:bcpkix-jdk15on:1.58")

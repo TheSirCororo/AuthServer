@@ -36,7 +36,7 @@ fun CoroutineScope.startReadingConnection(
             } catch (ex: ClosedReceiveChannelException) {
                 return@launch
             } catch (ex: Exception) {
-                logger.error("Exception when reading packet ${ex.localizedMessage}")
+                logger.error("Exception when reading or handling packet: $ex")
                 return@launch
             }
         }

@@ -101,3 +101,13 @@ fun Output.writeUUID(uuid: UUID) {
 fun Input.readUUID(): UUID {
     return UUID(readLong(), readLong())
 }
+
+fun Input.readByteArray(): ByteArray {
+    val length: Int = readVarInt()
+    return readBytes(length)
+}
+
+fun Output.writeByteArray(array: ByteArray) {
+    writeVarInt(array.size)
+    writeFully(array)
+}

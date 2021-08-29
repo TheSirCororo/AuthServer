@@ -20,3 +20,15 @@ data class ClientboundStatusResponsePacket(
         }
     }
 }
+
+data class StatusResponse(
+    val version: Version,
+//    val players: Players,
+    val favicon: String
+) {
+
+    data class Version(
+        val name: String,
+        val protocol: Int
+    )
+}
