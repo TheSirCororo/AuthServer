@@ -2,7 +2,6 @@ package ru.cororo.authserver.protocol.packet.clientbound
 
 import io.ktor.utils.io.core.*
 import ru.cororo.authserver.protocol.packet.MinecraftPacketCodec
-import ru.cororo.authserver.protocol.utils.writeVarInt
 
 data class ClientboundStatusPongPacket(
     val payload: Long
@@ -11,7 +10,7 @@ data class ClientboundStatusPongPacket(
         override val packetClass = ClientboundStatusPongPacket::class.java
 
         override fun write(output: Output, packet: ClientboundStatusPongPacket) {
-            output.writeVarInt(packet.payload.toInt())
+            output.writeLong(packet.payload)
         }
 
         override fun read(input: Input): ClientboundStatusPongPacket {

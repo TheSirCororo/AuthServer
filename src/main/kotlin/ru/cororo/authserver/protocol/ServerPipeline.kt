@@ -1,15 +1,10 @@
 package ru.cororo.authserver.protocol
 
-import io.ktor.network.selector.*
 import io.ktor.util.pipeline.*
 import io.ktor.utils.io.*
 import io.ktor.utils.io.core.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
-import ru.cororo.authserver.protocol.packet.handler.HandshakePacketHandler
-import ru.cororo.authserver.protocol.packet.handler.PacketHandler
-import ru.cororo.authserver.protocol.packet.handler.StatusPingHandler
-import ru.cororo.authserver.protocol.packet.handler.StatusRequestHandler
 import ru.cororo.authserver.protocol.utils.readVarInt
 import ru.cororo.authserver.protocol.utils.writeVarInt
 import ru.cororo.authserver.session.MinecraftSession
@@ -19,7 +14,7 @@ val readingConnectionCoroutine = CoroutineName("ReadingConnection")
 val writingConnectionCoroutine = CoroutineName("WritingConnection")
 
 /**
- * Used https://github.com/KarbonPowered/Karbon/blob/rewrite-v2/src/commonMain/kotlin/com/karbonpowered/vanilla/network/ServerPipeline.kt to make this function
+ * Used github.com/KarbonPowered/Karbon code
  */
 fun CoroutineScope.startReadingConnection(
     session: MinecraftSession,

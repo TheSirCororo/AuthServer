@@ -22,7 +22,6 @@ data class ServerboundHandshakePacket(
         }
 
         override fun read(input: Input): ServerboundHandshakePacket {
-            input.readVarInt()
             val protocolVersion = input.readVarInt()
             val serverAddress = input.readString()
             val port = input.readUShort()

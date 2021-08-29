@@ -1,5 +1,6 @@
 package ru.cororo.authserver.protocol.version.v1_17
 
+import ru.cororo.authserver.AuthServer.logger
 import ru.cororo.authserver.protocol.MinecraftProtocol
 import ru.cororo.authserver.protocol.packet.clientbound.ClientboundStatusPongPacket
 import ru.cororo.authserver.protocol.packet.clientbound.ClientboundStatusResponsePacket
@@ -20,7 +21,7 @@ class Protocol1_17 : MinecraftProtocol(inbound = { packet ->
         }
         is ServerboundStatusPingPacket -> context.sendPacket(ClientboundStatusPongPacket(packet.payload))
     }
-    println("receive packet: $packet")
+    logger.info("receive packet: $packet")
 }) {
     init {
         handshake {
