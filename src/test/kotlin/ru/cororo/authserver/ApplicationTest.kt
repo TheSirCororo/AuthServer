@@ -1,12 +1,17 @@
 package ru.cororo.authserver
 
-import io.ktor.routing.*
-import io.ktor.http.*
-import io.ktor.application.*
-import io.ktor.response.*
-import io.ktor.request.*
-import kotlin.test.*
-import io.ktor.server.testing.*
+import java.security.KeyPairGenerator
+import kotlin.test.Test
+
 
 class ApplicationTest {
+    @Test
+    fun generateKeyPair() {
+        val keyGen = KeyPairGenerator.getInstance("RSA")
+        keyGen.initialize(1024)
+        val keypair = keyGen.genKeyPair()
+        val privateKey = keypair.private
+        val publicKey = keypair.public
+        println(String(publicKey.encoded) to String(privateKey.encoded))
+    }
 }

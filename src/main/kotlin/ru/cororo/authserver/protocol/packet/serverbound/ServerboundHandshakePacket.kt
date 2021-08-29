@@ -12,14 +12,7 @@ data class ServerboundHandshakePacket(
 ) {
     @ExperimentalUnsignedTypes
     companion object : MinecraftPacketCodec<ServerboundHandshakePacket> {
-        override fun write(output: Output, packet: ServerboundHandshakePacket) {
-            output.apply {
-                writeVarInt(packet.protocolVersion)
-                writeString(packet.serverAddress)
-                writeUShort(packet.port)
-                writeVarInt(packet.nextState)
-            }
-        }
+        override fun write(output: Output, packet: ServerboundHandshakePacket) {}
 
         override fun read(input: Input): ServerboundHandshakePacket {
             val protocolVersion = input.readVarInt()

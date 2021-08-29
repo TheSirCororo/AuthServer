@@ -11,9 +11,7 @@ data class ServerboundLoginStartPacket(
     companion object : MinecraftPacketCodec<ServerboundLoginStartPacket> {
         override val packetClass = ServerboundLoginStartPacket::class.java
 
-        override fun write(output: Output, packet: ServerboundLoginStartPacket) {
-            output.writeString(packet.username)
-        }
+        override fun write(output: Output, packet: ServerboundLoginStartPacket) {}
 
         override fun read(input: Input) =
             ServerboundLoginStartPacket(input.readString())

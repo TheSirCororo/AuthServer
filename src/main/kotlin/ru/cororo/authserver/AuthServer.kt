@@ -11,6 +11,8 @@ import kotlinx.coroutines.channels.ClosedSendChannelException
 import org.slf4j.LoggerFactory
 import ru.cororo.authserver.protocol.startReadingConnection
 import ru.cororo.authserver.protocol.startWritingConnection
+import ru.cororo.authserver.protocol.utils.generateRSAKeyPair
+import ru.cororo.authserver.protocol.utils.toPEMString
 import ru.cororo.authserver.session.MinecraftSession
 import java.net.InetSocketAddress
 import java.util.concurrent.Executors
@@ -27,6 +29,8 @@ object AuthServer : CoroutineScope {
     override val coroutineContext: CoroutineContext =
         Executors.newSingleThreadExecutor().asCoroutineDispatcher() + CoroutineName("AuthServer")
     private val sessions = mutableSetOf<MinecraftSession>()
+    val keys = generateRSAKeyPair()
+    val publicKeyString = keys.first.toPEMString()
     val sessionsSet = sessions.toSet()
 
     suspend fun start(hostname: String = "127.0.0.1", port: Int = 5000) {

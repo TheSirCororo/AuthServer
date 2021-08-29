@@ -8,8 +8,7 @@ object ServerboundStatusRequestPacket : MinecraftPacketCodec<ServerboundStatusRe
 
     override val packetClass = this.javaClass
 
-    override fun write(output: Output, packet: ServerboundStatusRequestPacket) {
-    }
+    override fun write(output: Output, packet: ServerboundStatusRequestPacket) {}
 
     override fun read(input: Input) = ServerboundStatusRequestPacket
 }

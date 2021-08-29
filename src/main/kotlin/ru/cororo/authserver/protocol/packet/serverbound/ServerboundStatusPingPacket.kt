@@ -9,9 +9,7 @@ data class ServerboundStatusPingPacket(
     companion object : MinecraftPacketCodec<ServerboundStatusPingPacket> {
         override val packetClass = ServerboundStatusPingPacket::class.java
 
-        override fun write(output: Output, packet: ServerboundStatusPingPacket) {
-            output.writeLong(packet.payload)
-        }
+        override fun write(output: Output, packet: ServerboundStatusPingPacket) {}
 
         override fun read(input: Input): ServerboundStatusPingPacket {
             return ServerboundStatusPingPacket(input.readLong())

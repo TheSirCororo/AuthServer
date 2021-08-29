@@ -3,6 +3,7 @@ package ru.cororo.authserver.protocol.utils
 import io.ktor.utils.io.*
 import io.ktor.utils.io.core.*
 import io.ktor.utils.io.errors.*
+import java.util.*
 import kotlin.experimental.and
 import kotlin.experimental.or
 
@@ -90,4 +91,13 @@ fun Output.writeString(string: String) {
     val bytes = string.toByteArray()
     writeVarInt(bytes.size)
     writeFully(bytes)
+}
+
+fun Output.writeUUID(uuid: UUID) {
+    writeLong(uuid.mostSignificantBits)
+    writeLong(uuid.leastSignificantBits)
+}
+
+fun Input.readUUID(): UUID {
+    return UUID(readLong(), readLong())
 }

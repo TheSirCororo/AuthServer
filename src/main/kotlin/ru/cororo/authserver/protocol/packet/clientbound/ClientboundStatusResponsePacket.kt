@@ -16,7 +16,7 @@ data class ClientboundStatusResponsePacket(
         }
 
         override fun read(input: Input): ClientboundStatusResponsePacket {
-            return ClientboundStatusResponsePacket(input.readString())
+            return ClientboundStatusResponsePacket("")
         }
     }
 }
