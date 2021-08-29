@@ -26,13 +26,13 @@ fun CoroutineScope.startReadingConnection(
     inputPipeline: Pipeline<Any, MinecraftSession>
 ): Job {
     return launch(readingConnectionCoroutine) {
+        session.protocol.state = MinecraftProtocol.ProtocolState.HANDSHAKE
         while (true) {
             try {
                 val input = session.connection.input
                 val length = input.readVarInt()
                 val rawPacket = input.readPacket(length)
-                println("$length ${input.readVarInt()}")
-                val packetId = input.readVarInt()
+                val packetId = rawPacket.readVarInt()
                 val packetCodec = session.protocol.getCodec<Any>(packetId, MinecraftProtocol.Bound.SERVER)
                 val packet = packetCodec.read(rawPacket)
                 inputPipeline.execute(session, packet)
