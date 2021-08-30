@@ -82,6 +82,8 @@ object LoginEncryption : PacketHandler<ServerboundLoginEncryptionResponsePacket>
                 flat = false
             )
         )
+
+        logger.info("Player with name ${session.username} and UUID $uuid has joined from ${session.address}")
     }
 
     fun decryptVerifyToken(token: ByteArray) = decryptUsingKey(AuthServer.keys.second, token)

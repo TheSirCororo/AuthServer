@@ -15,7 +15,6 @@ import ru.cororo.authserver.protocol.startReadingConnection
 import ru.cororo.authserver.protocol.startWritingConnection
 import ru.cororo.authserver.protocol.utils.generate4CharsRandomString
 import ru.cororo.authserver.protocol.utils.generateRSAKeyPair
-import ru.cororo.authserver.protocol.utils.toPEMString
 import ru.cororo.authserver.session.MinecraftSession
 import java.math.BigInteger
 import java.net.InetSocketAddress
@@ -82,9 +81,6 @@ object AuthServer : CoroutineScope {
     private fun createSession(connection: Connection): MinecraftSession {
         val socketAddress = connection.socket.remoteAddress
         val inetAddress = InetSocketAddress(socketAddress.hostname, socketAddress.port)
-        val session = MinecraftSession(connection, Channel(), 756, inetAddress)
-        sessions.add(session)
-        logger.info("Player connection from ${inetAddress.address}")
-        return session
+        return MinecraftSession(connection, Channel(), 756, inetAddress)
     }
 }
