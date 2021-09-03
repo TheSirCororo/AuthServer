@@ -109,3 +109,5 @@ fun generate4CharsRandomString(): String {
 
     return stringBuilder.toString()
 }
+
+fun ByteArray.sha256() = MessageDigest.getInstance("SHA-256").digest(this)

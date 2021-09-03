@@ -10,13 +10,11 @@ plugins {
 group = "ru.cororo"
 version = "0.0.1"
 
-application {
-    mainClass.set("ru.cororo.authserver.AuthServerMain")
-}
 
 repositories {
     mavenCentral()
     maven("https://nexus.velocitypowered.com/repository/maven-public/")
+    maven("https://jitpack.io/")
 }
 
 dependencies {
@@ -27,8 +25,9 @@ dependencies {
     implementation("io.ktor:ktor-client-cio:$ktor_version")
     implementation("io.ktor:ktor-network:$ktor_version")
     implementation("ch.qos.logback:logback-classic:$logback_version")
-    implementation("org.bouncycastle:bcpkix-jdk15on:1.58")
-    implementation("com.google.code.gson:gson:2.8.7")
+    implementation("org.bouncycastle:bcpkix-jdk15on:1.69")
+    implementation("net.benwoodworth.knbt:knbt:0.8.1")
+    implementation("com.google.code.gson:gson:2.8.8")
     testImplementation("io.ktor:ktor-server-tests:$ktor_version")
     testImplementation("org.jetbrains.kotlin:kotlin-test:$kotlin_version")
 }

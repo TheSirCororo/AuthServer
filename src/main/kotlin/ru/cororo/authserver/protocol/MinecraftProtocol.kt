@@ -20,7 +20,6 @@ abstract class MinecraftProtocol(inbound: PipelineInterceptor<Any, MinecraftSess
     var state: ProtocolState = ProtocolState.HANDSHAKE
         set(value) {
             field = value
-            println("update state ($value)")
             when (value) {
                 ProtocolState.HANDSHAKE -> handshakeBuilder(ProtocolBuilder())
                 ProtocolState.STATUS -> statusBuilder(ProtocolBuilder())

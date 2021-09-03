@@ -66,7 +66,6 @@ object AuthServer : CoroutineScope {
                             coroutineContext.cancel()
                         } catch (closed: ClosedReceiveChannelException) {
                             coroutineContext.cancel()
-                            println("Disconnected from ${address.address}")
                         }
                     }
                 }

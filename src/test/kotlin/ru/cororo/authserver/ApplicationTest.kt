@@ -3,7 +3,6 @@ package ru.cororo.authserver
 import java.security.KeyPairGenerator
 import kotlin.test.Test
 
-
 class ApplicationTest {
     @Test
     fun generateKeyPair() {

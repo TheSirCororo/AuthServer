@@ -3,6 +3,7 @@ package ru.cororo.authserver.protocol.utils
 import io.ktor.utils.io.*
 import io.ktor.utils.io.core.*
 import io.ktor.utils.io.errors.*
+import net.benwoodworth.knbt.*
 import java.util.*
 import kotlin.experimental.and
 import kotlin.experimental.or
@@ -118,3 +119,101 @@ fun Output.writeStringArray(array: Array<String>) {
         writeString(it)
     }
 }
+
+fun Output.writeNBT(nbt: NbtTag, name: String) {
+    val nbtType = nbt.nbtType
+    writeByte(nbtType.id)
+    val bytes = name.toByteArray()
+    writeShort(bytes.size.toShort())
+    writeFully(bytes)
+    writeCompoundContent(nbt, name)
+}
+
+private fun Output.writeCompoundContent(compound: NbtTag, name: String) {
+    when (compound.nbtType) {
+        NbtType.ByteTag -> writeByte(compound.nbtByte.value)
+        NbtType.ByteArrayTag -> {
+            val array = compound.nbtByteArray
+            writeInt(array.size)
+            array.forEach {
+                writeByte(it)
+            }
+        }
+        NbtType.CompoundTag -> {
+            compound.nbtCompound.entries.forEach {
+                writeCompoundContent(it.value, it.key)
+            }
+            writeByte(NbtType.EndTag.id)
+        }
+        NbtType.DoubleTag -> writeDouble(compound.nbtDouble.value)
+        NbtType.FloatTag -> writeFloat(compound.nbtFloat.value)
+        NbtType.IntArrayTag -> {
+            val array = compound.nbtIntArray
+            writeInt(array.size)
+            array.forEach {
+                writeInt(it)
+            }
+        }
+        NbtType.IntTag -> writeInt(compound.nbtInt.value)
+        NbtType.ListTag -> {
+            val list = compound.nbtList
+            writeByte(list.first().nbtType.id)
+            writeInt(list.size)
+            list.forEach {
+                writeCompoundContent(it, name)
+            }
+        }
+        NbtType.LongArrayTag -> {
+            val array = compound.nbtLongArray
+            writeInt(array.size)
+            array.forEach {
+                writeLong(it)
+            }
+        }
+        NbtType.LongTag -> writeLong(compound.nbtLong.value)
+        NbtType.ShortTag -> writeShort(compound.nbtShort.value)
+        NbtType.StringTag -> {
+            val stringNbt = compound.nbtString
+            val bytes = stringNbt.value.toByteArray()
+            writeShort(bytes.size.toShort())
+            writeFully(bytes)
+        }
+        NbtType.EndTag -> throw IllegalArgumentException()
+    }
+}
+
+sealed class NbtType(
+    val id: Byte,
+    val name: String
+) {
+    object EndTag : NbtType(0, "TAG_End")
+    object ByteTag : NbtType(1, "TAG_Byte")
+    object ShortTag : NbtType(2, "TAG_Short")
+    object IntTag : NbtType(3, "TAG_Int")
+    object LongTag : NbtType(4, "TAG_Long")
+    object FloatTag : NbtType(5, "TAG_Float")
+    object DoubleTag : NbtType(6, "TAG_Double")
+    object ByteArrayTag : NbtType(7, "TAG_Byte_Array")
+    object StringTag : NbtType(8, "TAG_String")
+    object ListTag : NbtType(9, "TAG_List")
+    object CompoundTag : NbtType(10, "TAG_Compound")
+    object IntArrayTag : NbtType(11, "TAG_Int_Array")
+    object LongArrayTag : NbtType(12, "TAG_Long_Array")
+}
+
+private val NbtTag.nbtType: NbtType
+    get() =
+        when (this) {
+            is NbtByte -> NbtType.ByteTag
+            is NbtShort -> NbtType.ShortTag
+            is NbtInt -> NbtType.IntTag
+            is NbtLong -> NbtType.LongTag
+            is NbtFloat -> NbtType.FloatTag
+            is NbtDouble -> NbtType.DoubleTag
+            is NbtByteArray -> NbtType.ByteArrayTag
+            is NbtString -> NbtType.StringTag
+            is NbtList<*> -> NbtType.ListTag
+            is NbtCompound -> NbtType.CompoundTag
+            is NbtIntArray -> NbtType.IntArrayTag
+            is NbtLongArray -> NbtType.LongArrayTag
+        }

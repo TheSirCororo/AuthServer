@@ -12,7 +12,6 @@ object LoginStartHandler : PacketHandler<ServerboundLoginStartPacket> {
     override val packetClass = ServerboundLoginStartPacket::class.java
 
     override suspend fun handle(session: MinecraftSession, packet: ServerboundLoginStartPacket) {
-        logger.info("Start login player ${packet.username} from ${session.address.address}")
         session.username = packet.username
         session.protocol.state = MinecraftProtocol.ProtocolState.GAME
         session.sendPacket(
