@@ -1,4 +1,4 @@
-package ru.cororo.authserver.protocol.packet.serverbound
+package ru.cororo.authserver.protocol.packet.serverbound.login
 
 import io.ktor.utils.io.core.*
 import ru.cororo.authserver.protocol.packet.Packet

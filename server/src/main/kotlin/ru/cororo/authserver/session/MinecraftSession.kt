@@ -12,13 +12,13 @@ import ru.cororo.authserver.ServerInfo
 import ru.cororo.authserver.protocol.*
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketListener
-import ru.cororo.authserver.protocol.packet.clientbound.ClientboundStatusPongPacket
-import ru.cororo.authserver.protocol.packet.clientbound.ClientboundStatusResponsePacket
+import ru.cororo.authserver.protocol.packet.clientbound.status.ClientboundStatusPongPacket
+import ru.cororo.authserver.protocol.packet.clientbound.status.ClientboundStatusResponsePacket
 import ru.cororo.authserver.protocol.packet.handler.LoginEncryption
 import ru.cororo.authserver.protocol.packet.handler.LoginStartHandler
-import ru.cororo.authserver.protocol.packet.serverbound.ServerboundHandshakePacket
-import ru.cororo.authserver.protocol.packet.serverbound.ServerboundStatusPingPacket
-import ru.cororo.authserver.protocol.packet.serverbound.ServerboundStatusRequestPacket
+import ru.cororo.authserver.protocol.packet.serverbound.handshake.ServerboundHandshakePacket
+import ru.cororo.authserver.protocol.packet.serverbound.status.ServerboundStatusPingPacket
+import ru.cororo.authserver.protocol.packet.serverbound.status.ServerboundStatusRequestPacket
 import java.net.InetSocketAddress
 import javax.crypto.SecretKey
 

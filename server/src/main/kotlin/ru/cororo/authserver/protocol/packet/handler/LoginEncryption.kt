@@ -11,14 +11,16 @@ import ru.cororo.authserver.player.GameProfile
 import ru.cororo.authserver.protocol.MinecraftProtocol
 import ru.cororo.authserver.protocol.Protocolable
 import ru.cororo.authserver.protocol.packet.PacketListener
-import ru.cororo.authserver.protocol.packet.clientbound.*
-import ru.cororo.authserver.protocol.packet.serverbound.ServerboundLoginEncryptionResponsePacket
+import ru.cororo.authserver.protocol.packet.clientbound.game.ClientboundGameDisconnectPacket
+import ru.cororo.authserver.protocol.packet.clientbound.game.ClientboundGameJoinPacket
+import ru.cororo.authserver.protocol.packet.clientbound.login.ClientboundLoginDisconnectPacket
+import ru.cororo.authserver.protocol.packet.clientbound.login.ClientboundLoginSuccessPacket
+import ru.cororo.authserver.protocol.packet.serverbound.login.ServerboundLoginEncryptionResponsePacket
 import ru.cororo.authserver.protocol.utils.*
 import ru.cororo.authserver.session.MinecraftSession
 import java.math.BigInteger
 import java.net.URLEncoder
 import java.util.*
-import kotlin.text.toByteArray
 
 object LoginEncryption : PacketListener<ServerboundLoginEncryptionResponsePacket> {
     override val packetClass = ServerboundLoginEncryptionResponsePacket::class.java
@@ -134,25 +136,25 @@ object LoginEncryption : PacketListener<ServerboundLoginEncryptionResponsePacket
                     Component.text("Test")
                 )
             )
-//            protocolable.sendPacket(
-//                ClientboundGameJoinPacket(
-//                    (0..100).random(),
-//                    false,
-//                    1,
-//                    -1,
-//                    arrayOf("minecraft:world"),
-//                    DIMENSION_CODEC,
-//                    DIMENSION,
-//                    "minecraft:world",
-//                    BigInteger(112312.toString().toByteArray().sha256().copyOfRange(0, 7)).longValueExact(),
-//                    20,
-//                    8,
-//                    debugInfo = false,
-//                    respawnScreen = false,
-//                    debug = false,
-//                    flat = false
-//                )
-//            )
+            protocolable.sendPacket(
+                ClientboundGameJoinPacket(
+                    (0..100).random(),
+                    false,
+                    1,
+                    -1,
+                    arrayOf("minecraft:world"),
+                    DIMENSION_CODEC,
+                    DIMENSION,
+                    "minecraft:world",
+                    BigInteger(112312.toString().toByteArray().sha256().copyOfRange(0, 7)).longValueExact(),
+                    20,
+                    8,
+                    debugInfo = false,
+                    respawnScreen = false,
+                    debug = false,
+                    flat = false
+                )
+            )
 //        protocolable.sendPacket(
 //            ClientboundGamePluginMessagePacket(
 //                "minecraft:brand",

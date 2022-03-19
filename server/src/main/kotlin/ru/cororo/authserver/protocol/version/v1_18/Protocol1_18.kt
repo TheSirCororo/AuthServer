@@ -1,8 +1,13 @@
 package ru.cororo.authserver.protocol.version.v1_18
 
 import ru.cororo.authserver.protocol.MinecraftProtocol
-import ru.cororo.authserver.protocol.packet.clientbound.*
-import ru.cororo.authserver.protocol.packet.serverbound.*
+import ru.cororo.authserver.protocol.packet.clientbound.game.*
+import ru.cororo.authserver.protocol.packet.clientbound.login.*
+import ru.cororo.authserver.protocol.packet.clientbound.status.*
+import ru.cororo.authserver.protocol.packet.serverbound.game.*
+import ru.cororo.authserver.protocol.packet.serverbound.handshake.ServerboundHandshakePacket
+import ru.cororo.authserver.protocol.packet.serverbound.login.*
+import ru.cororo.authserver.protocol.packet.serverbound.status.*
 
 @OptIn(ExperimentalUnsignedTypes::class)
 class Protocol1_18 : MinecraftProtocol() {
@@ -39,6 +44,6 @@ class Protocol1_18 : MinecraftProtocol() {
     }
 
     override fun toString(): String {
-        return "Protocol 1.17 (state=$state, serverbound=$serverbound, clientbound=$clientbound)"
+        return "Protocol 1.18 (state=$state, serverbound=$serverbound, clientbound=$clientbound)"
     }
 }

@@ -1,4 +1,4 @@
-package ru.cororo.authserver.protocol.packet.clientbound
+package ru.cororo.authserver.protocol.packet.clientbound.login
 
 import io.ktor.utils.io.core.*
 import net.kyori.adventure.text.Component
@@ -6,9 +6,7 @@ import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.packet.PacketCodec
 import ru.cororo.authserver.protocol.utils.readComponent
-import ru.cororo.authserver.protocol.utils.readString
 import ru.cororo.authserver.protocol.utils.writeComponent
-import ru.cororo.authserver.protocol.utils.writeString
 
 data class ClientboundLoginDisconnectPacket(
     val reason: Component
