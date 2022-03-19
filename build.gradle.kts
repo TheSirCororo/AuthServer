@@ -9,41 +9,44 @@ plugins {
     id("com.github.johnrengelman.shadow") version "7.1.2"
 }
 
-group = "ru.cororo"
-version = "0.0.1"
+allprojects {
+    apply(plugin = "kotlin")
+    apply(plugin = "kotlinx-serialization")
+    apply(plugin = "com.github.johnrengelman.shadow")
 
-application {
-    mainClass.set("ru.cororo.authserver.AuthServerMainKt")
-}
+    group = "ru.cororo"
+    version = "0.0.1"
 
-repositories {
-    mavenCentral()
-    maven("https://nexus.velocitypowered.com/repository/maven-public/")
-    maven("https://jitpack.io/")
-    maven("https://s01.oss.sonatype.org/content/repositories/snapshots/")
-}
+//    application {
+//        mainClass.set("ru.cororo.authserver.AuthServerMainKt")
+//    }
 
-dependencies {
-    compileOnly("com.velocitypowered:velocity-api:3.0.0")
+    repositories {
+        mavenCentral()
+    }
 
-    implementation("io.ktor:ktor-server-core:$ktor_version")
-    implementation("io.ktor:ktor-server-netty:$ktor_version")
-    implementation("io.ktor:ktor-client-cio:$ktor_version")
-    implementation("io.ktor:ktor-network:$ktor_version")
-    implementation("ch.qos.logback:logback-classic:$logback_version")
-    implementation("org.bouncycastle:bcpkix-jdk15on:1.70")
-    implementation("net.benwoodworth.knbt:knbt:0.11.1")
-    implementation("com.google.code.gson:gson:2.9.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.2")
-    testImplementation("io.ktor:ktor-server-tests:$ktor_version")
-    testImplementation("org.jetbrains.kotlin:kotlin-test:$kotlin_version")
-    implementation(kotlin("stdlib"))
-}
+    dependencies {
+//        compileOnly("com.velocitypowered:velocity-api:3.0.0")
 
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-    kotlinOptions {
-        jvmTarget = "17"
-        targetCompatibility = "17"
-        sourceCompatibility = "17"
+        implementation("io.ktor:ktor-server-core:$ktor_version")
+        implementation("io.ktor:ktor-server-netty:$ktor_version")
+        implementation("io.ktor:ktor-client-cio:$ktor_version")
+        implementation("io.ktor:ktor-network:$ktor_version")
+        implementation("ch.qos.logback:logback-classic:$logback_version")
+        implementation("org.bouncycastle:bcpkix-jdk15on:1.70")
+        implementation("net.benwoodworth.knbt:knbt:0.11.1")
+        implementation("com.google.code.gson:gson:2.9.0")
+        implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.2")
+        testImplementation("io.ktor:ktor-server-tests:$ktor_version")
+        testImplementation("org.jetbrains.kotlin:kotlin-test:$kotlin_version")
+        implementation(kotlin("stdlib"))
+    }
+
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+        kotlinOptions {
+            jvmTarget = "17"
+            targetCompatibility = "17"
+            sourceCompatibility = "17"
+        }
     }
 }
