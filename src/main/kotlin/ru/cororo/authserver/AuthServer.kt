@@ -35,10 +35,9 @@ object AuthServer : CoroutineScope {
     val keys = generateRSAKeyPair()
     val sessionClient = HttpClient(CIO)
     val sessionsSet = sessions.toSet()
-    val serverId = BigInteger(generate4CharsRandomString().toByteArray()).toString(16)
 
     suspend fun start(hostname: String = "127.0.0.1", port: Int = 5000) {
-        launch {
+        withContext(this.coroutineContext) {
             address = InetSocketAddress(hostname, port)
             val selector = ActorSelectorManager(coroutineContext)
             val tcpSocketBuilder = aSocket(selector).tcp()

@@ -27,23 +27,26 @@ data class ClientboundGameJoinPacket(
         override val packetClass = ClientboundGameJoinPacket::class.java
 
         override fun write(output: Output, packet: ClientboundGameJoinPacket) {
-            output.apply {
-                writeInt(packet.entityId)
-                writeBoolean(packet.hardcore)
-                writeByte(packet.gameMode)
-                writeByte(packet.previousGameMode)
-                writeStringArray(packet.worldNames)
-                writeNBT(packet.dimensionCodec, "")
-                writeNBT(packet.dimension, "")
-                writeString(packet.worldName)
-                writeLong(packet.hashedSeed)
-                writeVarInt(packet.maxPlayers)
-                writeVarInt(packet.viewDistance)
-                writeBoolean(packet.debugInfo)
-                writeBoolean(packet.respawnScreen)
-                writeBoolean(packet.debug)
-                writeBoolean(packet.flat)
-            }
+            output.writeInt(packet.entityId)
+            output.writeBoolean(packet.hardcore)
+            output.writeByte(packet.gameMode)
+            output.writeByte(packet.gameMode)
+            output.writeVarInt(1)
+            output.writeString("minecraft:world")
+
+            output.writeNBT(packet.dimensionCodec)
+            output.writeNBT(packet.dimension)
+
+            output.writeString(packet.worldName)
+            output.writeLong(packet.hashedSeed)
+            output.writeVarInt(packet.maxPlayers)
+            output.writeVarInt(packet.viewDistance)
+            output.writeBoolean(packet.debugInfo)
+            output.writeBoolean(packet.respawnScreen)
+
+            output.writeBoolean(packet.debug)
+
+            output.writeBoolean(packet.flat)
         }
 
         override fun read(input: Input): ClientboundGameJoinPacket {

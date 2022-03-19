@@ -2,7 +2,10 @@ package ru.cororo.authserver.protocol.packet.clientbound
 
 import io.ktor.utils.io.core.*
 import ru.cororo.authserver.protocol.packet.MinecraftPacketCodec
+import ru.cororo.authserver.protocol.utils.readString
+import ru.cororo.authserver.protocol.utils.writeString
 import ru.cororo.authserver.protocol.utils.writeUUID
+import java.math.BigInteger
 import java.util.*
 
 data class ClientboundLoginSuccessPacket(
@@ -14,10 +17,11 @@ data class ClientboundLoginSuccessPacket(
 
         override fun write(output: Output, packet: ClientboundLoginSuccessPacket) {
             output.writeUUID(packet.uuid)
+            output.writeString(packet.username)
         }
 
         override fun read(input: Input): ClientboundLoginSuccessPacket {
-            return ClientboundLoginSuccessPacket(UUID.randomUUID(), "")
+            return ClientboundLoginSuccessPacket(UUID.randomUUID(), input.readString())
         }
     }
 }

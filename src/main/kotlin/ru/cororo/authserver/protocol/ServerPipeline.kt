@@ -28,6 +28,7 @@ fun CoroutineScope.startReadingConnection(
                 val length = input.readVarInt()
                 val rawPacket = input.readPacket(length)
                 val packetId = rawPacket.readVarInt()
+                println("received packet with id $packetId")
                 val packetCodec = session.protocol.getCodec<Any>(packetId, MinecraftProtocol.Bound.SERVER)
                 val packet = packetCodec.read(rawPacket)
                 inputPipeline.execute(session, packet)

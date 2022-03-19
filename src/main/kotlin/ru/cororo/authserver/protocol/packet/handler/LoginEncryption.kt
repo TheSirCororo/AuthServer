@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.utils.io.core.*
+import kotlinx.serialization.encodeToByteArray
 import net.benwoodworth.knbt.*
 import ru.cororo.authserver.AuthServer
 import ru.cororo.authserver.player.GameProfile
@@ -21,7 +22,7 @@ import kotlin.text.toByteArray
 
 object LoginEncryption : PacketHandler<ServerboundLoginEncryptionResponsePacket> {
     override val packetClass = ServerboundLoginEncryptionResponsePacket::class.java
-    val DIMENSION = buildNbtCompound {
+    val DIMENSION = buildNbtCompound("") {
         put("piglin_safe", 0x00.toByte())
         put("natural", 0x00.toByte())
         put("ambient_light", 0.5f)
@@ -38,7 +39,6 @@ object LoginEncryption : PacketHandler<ServerboundLoginEncryptionResponsePacket>
         put("coordinate_scale", 1)
         put("ultrawarm", 0x00.toByte())
         put("has_ceiling", 0x00.toByte())
-        put("name", "minecraft:overworld")
     }
 
     val BIOME = buildNbtCompound {
@@ -65,7 +65,7 @@ object LoginEncryption : PacketHandler<ServerboundLoginEncryptionResponsePacket>
         }
     }
 
-    val DIMENSION_CODEC = buildNbtCompound {
+    val DIMENSION_CODEC = buildNbtCompound("") {
         putNbtCompound("minecraft:dimension_type") {
             put("type", "minecraft:dimension_type")
             putNbtList("value") {
@@ -118,7 +118,8 @@ object LoginEncryption : PacketHandler<ServerboundLoginEncryptionResponsePacket>
         )
         session.sendPacket(
             ClientboundLoginSuccessPacket(
-                uuid, username
+                uuid,
+                username
             )
         )
         session.protocol.state = MinecraftProtocol.ProtocolState.GAME
@@ -141,12 +142,12 @@ object LoginEncryption : PacketHandler<ServerboundLoginEncryptionResponsePacket>
                 flat = false
             )
         )
-        session.sendPacket(
-            ClientboundGamePluginMessagePacket(
-                "minecraft:brand",
-                byteArrayOf()
-            )
-        )
+//        session.sendPacket(
+//            ClientboundGamePluginMessagePacket(
+//                "minecraft:brand",
+//                byteArrayOf()
+//            )
+//        )
 
         logger.info("Player with name ${session.username} and UUID $uuid has joined from ${session.address}")
     }
