@@ -11,9 +11,11 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import org.slf4j.LoggerFactory
-import ru.cororo.authserver.protocol.*
+import ru.cororo.authserver.protocol.ProtocolVersions
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketListener
+import ru.cororo.authserver.protocol.startReadingConnection
+import ru.cororo.authserver.protocol.startWritingConnection
 import ru.cororo.authserver.protocol.utils.generateRSAKeyPair
 import ru.cororo.authserver.session.MinecraftSession
 import ru.cororo.authserver.session.Session
@@ -25,56 +27,68 @@ val logger get() = AuthServerImpl.logger
 
 object AuthServerImpl : AuthServer {
     override val logger = LoggerFactory.getLogger("AuthServer")
-    lateinit var input: ByteReadChannel
-        private set
-    lateinit var output: ByteWriteChannel
-        private set
     override lateinit var address: InetSocketAddress
         private set
     override val coroutineContext: CoroutineContext =
         Executors.newSingleThreadExecutor().asCoroutineDispatcher() + CoroutineName("AuthServer")
+    override val sessions = mutableSetOf<MinecraftSession>()
 
-    override fun <T : Packet> sendPacket(packet: T) {
-        TODO("Not yet implemented")
-    }
-
-    override fun <T : Packet> addPacketListener(listener: PacketListener<T>) {
-        TODO("Not yet implemented")
-    }
-
-    override val sessions = mutableSetOf<Session>()
+    // Key pair for login
     val keys = generateRSAKeyPair()
+
+    // Http client for making requests to mojang session server
     val sessionClient = HttpClient(CIO)
+
+    // You can't send fake packets to the server without session
+    override fun <T : Packet> sendPacket(packet: T) {
+        throw UnsupportedOperationException()
+    }
+
+    // You can handle serverbound packets
+    override fun <T : Packet> addPacketListener(listener: PacketListener<T>) {
+
+    }
+
+    override fun <T : Packet> sendFakePacket(packet: T, session: Session) {
+        AuthServerImpl.launch {
+            (session as MinecraftSession).protocol.inboundPipeline.execute(session, packet)
+        }
+    }
 
     suspend fun start(hostname: String = "127.0.0.1", port: Int = 5000) {
         withContext(coroutineContext) {
             address = InetSocketAddress(hostname, port)
+            // Starting tcp server
             val selector = ActorSelectorManager(coroutineContext)
             val tcpSocketBuilder = aSocket(selector).tcp()
             val server = tcpSocketBuilder.bind(address)
-            logger.info("AuthServer bind at ${address.address}")
+            logger.info("AuthServer bind at $address")
 
             try {
                 while (true) {
+                    // Wait for client connection and launch task for handling it
                     val socket = server.accept()
                     launch {
-                        try {
-                            val connection = socket.connection()
-                            val session = createSession(connection)
-                            startReadingConnection(session, session.protocol.inboundPipeline).apply {
-                                invokeOnCompletion {
-                                    socket.close()
+                        val connection = socket.connection()
+                        val session = createSession(connection)
+                        sessions.add(session)
+                        startReadingConnection(session, session.protocol.inboundPipeline).apply {
+                            invokeOnCompletion {
+                                if (it != null) {
+                                    logger.error("Client $session exists with error", it)
                                 }
+                                socket.close()
+                                sessions.remove(session)
                             }
-                            startWritingConnection(session, session.protocol.outboundPipeline).apply {
-                                invokeOnCompletion {
-                                    socket.close()
+                        }
+                        startWritingConnection(session, session.protocol.outboundPipeline).apply {
+                            invokeOnCompletion {
+                                if (it != null) {
+                                    logger.error("Client $session exists with error", it)
                                 }
+                                socket.close()
+                                sessions.remove(session)
                             }
-                        } catch (closed: ClosedSendChannelException) {
-                            coroutineContext.cancel()
-                        } catch (closed: ClosedReceiveChannelException) {
-                            coroutineContext.cancel()
                         }
                     }
                 }

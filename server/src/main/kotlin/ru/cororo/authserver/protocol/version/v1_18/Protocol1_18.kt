@@ -1,11 +1,11 @@
-package ru.cororo.authserver.protocol.version.v1_17
+package ru.cororo.authserver.protocol.version.v1_18
 
 import ru.cororo.authserver.protocol.MinecraftProtocol
 import ru.cororo.authserver.protocol.packet.clientbound.*
 import ru.cororo.authserver.protocol.packet.serverbound.*
 
 @OptIn(ExperimentalUnsignedTypes::class)
-class Protocol1_17 : MinecraftProtocol() {
+class Protocol1_18 : MinecraftProtocol() {
     init {
         handshake {
             serverbound(0x00, ServerboundHandshakePacket)

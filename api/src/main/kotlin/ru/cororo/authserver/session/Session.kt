@@ -17,4 +17,10 @@ interface Session : Protocolable {
      * Player protocol version
      */
     val protocolVersion: ProtocolVersion
+
+    /**
+     * Player username
+     * Null if player don't authenticated
+     */
+    val username: String?
 }

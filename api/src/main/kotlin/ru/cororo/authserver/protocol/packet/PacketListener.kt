@@ -20,7 +20,7 @@ interface PacketListener<T : Packet> {
 /**
  * Function for easy creating packet listeners
  */
-inline fun <reified T : Packet> handler(crossinline handle: (T, Protocolable) -> Unit) = object : PacketListener<T> {
+inline fun <reified T : Packet> listener(crossinline handle: (T, Protocolable) -> Unit) = object : PacketListener<T> {
     override val packetClass: Class<T> = T::class.java
 
     override fun handle(packet: T, protocolable: Protocolable) {

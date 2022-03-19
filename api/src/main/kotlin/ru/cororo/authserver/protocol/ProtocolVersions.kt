@@ -63,7 +63,7 @@ object ProtocolVersions {
     val default = defaults.last()
 
     /**
-     * Get protocol version by ProtocolVersion.raw
+     * Get protocol version by [ProtocolVersion.raw]
      */
     fun getByRaw(raw: Int) = defaults.find { it.raw == raw }
 }

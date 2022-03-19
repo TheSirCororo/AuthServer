@@ -7,6 +7,7 @@ import net.benwoodworth.knbt.Nbt
 import net.benwoodworth.knbt.NbtCompression
 import net.benwoodworth.knbt.NbtTag
 import net.benwoodworth.knbt.NbtVariant
+import java.io.IOException
 import java.util.*
 import kotlin.experimental.and
 import kotlin.experimental.or
@@ -40,34 +41,31 @@ suspend fun ByteWriteChannel.writeVarInt(int: Int) {
 }
 
 fun Input.readVarInt(): Int {
-    var value = 0
-    var length = 0
-    var currentByte: Byte
-    while (true) {
-        currentByte = readByte()
-        value = value or ((currentByte and 0x7F).toInt() shl length * 7)
-        length += 1
-        if (length > 5) {
-            throw RuntimeException("VarInt is too big")
+    var numRead = 0
+    var result = 0
+    var read: Byte
+    do {
+        read = readByte()
+        val value = (read and 127).toInt()
+        result = result or (value shl 7 * numRead)
+        numRead++
+        if (numRead > 5) {
+            throw IOException("VarInt is too big")
         }
-        if ((currentByte and 0x80.toByte()).toInt() != 0x80) {
-            break
-        }
-    }
-    return value
+    } while (read and 128.toByte() != 0.toByte())
+    return result
 }
 
 fun Output.writeVarInt(i: Int) {
     var value = i
-    while (true) {
-        if (value and 0x7F.inv() == 0) {
-            writeByte(value.toByte())
-            return
-        }
-
-        writeByte((value and 0x7F or 0x80).toByte())
+    do {
+        var temp = (value and 127).toByte()
         value = value ushr 7
-    }
+        if (value != 0) {
+            temp = temp or 128.toByte()
+        }
+        writeByte(temp)
+    } while (value != 0)
 }
 
 fun Input.readVarLong(): Long {

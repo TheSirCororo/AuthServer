@@ -5,10 +5,12 @@ import io.ktor.utils.io.*
 import io.ktor.utils.io.core.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import ru.cororo.authserver.logger
+import ru.cororo.authserver.protocol.packet.Packet
+import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.utils.readVarInt
 import ru.cororo.authserver.protocol.utils.writeVarInt
 import ru.cororo.authserver.session.MinecraftSession
-import ru.cororo.authserver.velocity.logger
 
 val readingConnectionCoroutine = CoroutineName("ReadingConnection")
 val writingConnectionCoroutine = CoroutineName("WritingConnection")
@@ -29,7 +31,7 @@ fun CoroutineScope.startReadingConnection(
                 val rawPacket = input.readPacket(length)
                 val packetId = rawPacket.readVarInt()
                 println("received packet with id $packetId")
-                val packetCodec = session.protocol.getCodec<Any>(packetId, MinecraftProtocol.Bound.SERVER)
+                val packetCodec = session.protocol.getCodec<Packet>(packetId, PacketBound.SERVER)
                 val packet = packetCodec.read(rawPacket)
                 inputPipeline.execute(session, packet)
             } catch (ex: IllegalArgumentException) {
@@ -52,9 +54,11 @@ fun CoroutineScope.startWritingConnection(
         while (true) {
             val output = session.connection.output
             val packet = session.sendChannel.receive()
+            if (packet !is Packet) continue
             outputPipeline.execute(session, packet)
-            val codec = session.protocol.getCodec(packet, MinecraftProtocol.Bound.CLIENT)
-            val packetId = session.protocol.getPacketId(codec, MinecraftProtocol.Bound.CLIENT)
+            val codec = session.protocol.getCodec(packet, PacketBound.CLIENT)
+            val packetId = session.protocol.getPacketId(codec, PacketBound.CLIENT)
+            println("sending packet with id $packetId")
             output.writePacket {
                 val encodedPacket = buildPacket {
                     writeVarInt(packetId)

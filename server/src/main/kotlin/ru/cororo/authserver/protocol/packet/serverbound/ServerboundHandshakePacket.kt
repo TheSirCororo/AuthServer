@@ -20,7 +20,7 @@ data class ServerboundHandshakePacket(
 
         override fun read(input: Input): ServerboundHandshakePacket {
             val protocolVersion = input.readVarInt()
-            val serverAddress = input.readString()
+            val serverAddress = input.readString(255)
             val port = input.readUShort()
             val nextState = input.readVarInt()
             return ServerboundHandshakePacket(protocolVersion, serverAddress, port, nextState)
