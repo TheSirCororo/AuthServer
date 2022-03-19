@@ -20,6 +20,7 @@ import ru.cororo.authserver.protocol.packet.serverbound.ServerboundHandshakePack
 import ru.cororo.authserver.protocol.packet.serverbound.ServerboundStatusPingPacket
 import ru.cororo.authserver.protocol.packet.serverbound.ServerboundStatusRequestPacket
 import java.net.InetSocketAddress
+import javax.crypto.SecretKey
 
 data class MinecraftSession(
     val connection: Connection,
@@ -30,6 +31,7 @@ data class MinecraftSession(
     override var username: String? = null
     val protocol get() = protocol(protocolVersion)
     private val listeners = mutableMapOf<Class<out Packet>, MutableList<PacketListener<out Packet>>>()
+    var secret: SecretKey? = null
 
     init {
         addPacketListener<ServerboundHandshakePacket> { packet, session ->
@@ -55,7 +57,7 @@ data class MinecraftSession(
         }
 
         addPacketListener<ServerboundStatusPingPacket> { packet, session ->
-            session as Session
+            session as MinecraftSession
             session.sendPacket(ClientboundStatusPongPacket(packet.payload))
         }
 

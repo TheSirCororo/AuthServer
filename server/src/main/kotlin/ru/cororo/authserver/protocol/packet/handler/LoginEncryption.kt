@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import io.ktor.client.request.*
 import kotlinx.coroutines.launch
 import net.benwoodworth.knbt.*
+import net.kyori.adventure.text.Component
 import ru.cororo.authserver.AuthServerImpl
 import ru.cororo.authserver.logger
 import ru.cororo.authserver.player.GameProfile
@@ -90,7 +91,7 @@ object LoginEncryption : PacketListener<ServerboundLoginEncryptionResponsePacket
             if (!Arrays.equals(verifyToken, verifyTokens[protocolable])) {
                 protocolable.sendPacket(
                     ClientboundLoginDisconnectPacket(
-                        """{"text":"Wrong login!"}"""
+                        Component.text("Failed authorization")
                     )
                 )
                 return@launch
@@ -100,7 +101,7 @@ object LoginEncryption : PacketListener<ServerboundLoginEncryptionResponsePacket
             if (digestedData == null) {
                 protocolable.sendPacket(
                     ClientboundLoginDisconnectPacket(
-                        """{"text":"Wrong login!"}"""
+                        Component.text("Failed authorization")
                     )
                 )
                 return@launch
@@ -125,27 +126,34 @@ object LoginEncryption : PacketListener<ServerboundLoginEncryptionResponsePacket
                     username
                 )
             )
+            protocolable.secret = secret
+
             protocolable.protocol.state = MinecraftProtocol.ProtocolState.GAME
             protocolable.sendPacket(
-                ClientboundGameJoinPacket(
-                    (0..100).random(),
-                    false,
-                    1,
-                    -1,
-                    arrayOf("minecraft:world"),
-                    DIMENSION_CODEC,
-                    DIMENSION,
-                    "minecraft:world",
-                    BigInteger(112312.toString().toByteArray().sha256().copyOfRange(0, 7)).longValueExact(),
-                    20,
-                    8,
-                    debugInfo = false,
-                    respawnScreen = false,
-                    debug = false,
-                    flat = false
+                ClientboundGameDisconnectPacket(
+                    Component.text("Test")
                 )
             )
-//        session.sendPacket(
+//            protocolable.sendPacket(
+//                ClientboundGameJoinPacket(
+//                    (0..100).random(),
+//                    false,
+//                    1,
+//                    -1,
+//                    arrayOf("minecraft:world"),
+//                    DIMENSION_CODEC,
+//                    DIMENSION,
+//                    "minecraft:world",
+//                    BigInteger(112312.toString().toByteArray().sha256().copyOfRange(0, 7)).longValueExact(),
+//                    20,
+//                    8,
+//                    debugInfo = false,
+//                    respawnScreen = false,
+//                    debug = false,
+//                    flat = false
+//                )
+//            )
+//        protocolable.sendPacket(
 //            ClientboundGamePluginMessagePacket(
 //                "minecraft:brand",
 //                byteArrayOf()

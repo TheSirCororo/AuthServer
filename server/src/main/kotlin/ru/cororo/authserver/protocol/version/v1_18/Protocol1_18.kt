@@ -31,7 +31,10 @@ class Protocol1_18 : MinecraftProtocol() {
 
         game {
             clientbound(0x18, ClientboundGamePluginMessagePacket)
+            clientbound(0x1A, ClientboundGameDisconnectPacket)
             clientbound(0x26, ClientboundGameJoinPacket)
+
+            serverbound(0x05, ServerboundGameClientSettingsPacket)
         }
     }
 

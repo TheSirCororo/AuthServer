@@ -8,6 +8,7 @@ import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import ru.cororo.authserver.logger
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
+import ru.cororo.authserver.protocol.utils.encryptUsingKey
 import ru.cororo.authserver.protocol.utils.readVarInt
 import ru.cororo.authserver.protocol.utils.writeVarInt
 import ru.cororo.authserver.session.MinecraftSession
@@ -59,13 +60,23 @@ fun CoroutineScope.startWritingConnection(
             val codec = session.protocol.getCodec(packet, PacketBound.CLIENT)
             val packetId = session.protocol.getPacketId(codec, PacketBound.CLIENT)
             println("sending packet with id $packetId")
-            output.writePacket {
+            if (session.protocol.getCodec<Packet>(packetId, PacketBound.CLIENT) != codec) {
+                logger.error("Wrong packet sending!")
+                break
+            }
+            val bytePacket = buildPacket {
                 val encodedPacket = buildPacket {
                     writeVarInt(packetId)
                     codec.write(this, packet)
                 }
                 writeVarInt(encodedPacket.remaining.toInt())
                 writePacket(encodedPacket)
+            }
+            if (session.secret != null) {
+                val bytes = bytePacket.readBytes(bytePacket.remaining.toInt())
+                output.writePacket(ByteReadPacket(encryptUsingKey(session.secret!!, bytes)))
+            } else {
+                output.writePacket(bytePacket)
             }
             output.flush()
         }

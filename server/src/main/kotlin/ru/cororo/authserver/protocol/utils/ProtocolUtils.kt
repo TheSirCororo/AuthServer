@@ -7,7 +7,10 @@ import net.benwoodworth.knbt.Nbt
 import net.benwoodworth.knbt.NbtCompression
 import net.benwoodworth.knbt.NbtTag
 import net.benwoodworth.knbt.NbtVariant
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
 import java.io.IOException
+import java.nio.file.Files.readString
 import java.util.*
 import kotlin.experimental.and
 import kotlin.experimental.or
@@ -130,6 +133,14 @@ fun Output.writeString(string: String) {
 fun Output.writeUUID(uuid: UUID) {
     writeLong(uuid.mostSignificantBits)
     writeLong(uuid.leastSignificantBits)
+}
+
+fun Output.writeComponent(component: Component) {
+    writeString(GsonComponentSerializer.gson().serialize(component))
+}
+
+fun Input.readComponent(): Component {
+    return GsonComponentSerializer.gson().deserialize(readString())
 }
 
 fun Input.readUUID(): UUID {

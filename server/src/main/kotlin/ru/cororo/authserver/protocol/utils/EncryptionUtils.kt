@@ -61,7 +61,15 @@ fun decryptByteToSecretKey(privateKey: PrivateKey, bytes: ByteArray): SecretKey 
 }
 
 fun decryptUsingKey(key: Key, bytes: ByteArray): ByteArray {
-    return cipherData(2, key, bytes)
+    return cipherData(Cipher.DECRYPT_MODE, key, bytes)
+}
+
+fun encryptUsingKey(key: Key, bytes: ByteArray): ByteArray {
+    return cipherData(Cipher.ENCRYPT_MODE, key, bytes)
+}
+
+fun encryptUsingKey(key: Key, bytes: ByteArray, algorithm: String = "AES/CFB8/NoPadding"): ByteArray {
+    return setupCipher(Cipher.ENCRYPT_MODE, algorithm, key)!!.doFinal(bytes)
 }
 
 private fun cipherData(mode: Int, key: Key, data: ByteArray): ByteArray {
@@ -77,6 +85,14 @@ private fun setupCipher(mode: Int, transformation: String, key: Key): Cipher? {
 fun digestData(data: String, publicKey: PublicKey, secretKey: SecretKey): ByteArray? {
     return try {
         digestData("SHA-1", data.toByteArray(charset("ISO_8859_1")), secretKey.encoded, publicKey.encoded)
+    } catch (e: UnsupportedEncodingException) {
+        null
+    }
+}
+
+fun digestData(data: ByteArray, publicKey: PublicKey, secretKey: SecretKey): ByteArray? {
+    return try {
+        digestData("SHA-1", data, secretKey.encoded, publicKey.encoded)
     } catch (e: UnsupportedEncodingException) {
         null
     }

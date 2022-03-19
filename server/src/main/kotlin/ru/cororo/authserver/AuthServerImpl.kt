@@ -77,6 +77,7 @@ object AuthServerImpl : AuthServer {
                                 if (it != null) {
                                     logger.error("Client $session exists with error", it)
                                 }
+                                logger.info("Client $session disconnected")
                                 socket.close()
                                 sessions.remove(session)
                             }
@@ -86,6 +87,7 @@ object AuthServerImpl : AuthServer {
                                 if (it != null) {
                                     logger.error("Client $session exists with error", it)
                                 }
+                                logger.info("Client $session disconnected")
                                 socket.close()
                                 sessions.remove(session)
                             }
