@@ -3,6 +3,7 @@ package ru.cororo.authserver.protocol.utils
 import org.bouncycastle.asn1.ASN1InputStream
 import org.bouncycastle.asn1.ASN1Primitive
 import org.bouncycastle.asn1.DERApplicationSpecific
+import org.bouncycastle.jcajce.provider.symmetric.AES
 import org.bouncycastle.util.io.pem.PemObject
 import org.bouncycastle.util.io.pem.PemWriter
 import org.jetbrains.annotations.Nullable
@@ -12,6 +13,7 @@ import java.io.StringWriter
 import java.io.UnsupportedEncodingException
 import java.security.*
 import javax.crypto.*
+import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 
@@ -68,8 +70,18 @@ fun encryptUsingKey(key: Key, bytes: ByteArray): ByteArray {
     return cipherData(Cipher.ENCRYPT_MODE, key, bytes)
 }
 
-fun encryptUsingKey(key: Key, bytes: ByteArray, algorithm: String = "AES/CFB8/NoPadding"): ByteArray {
-    return setupCipher(Cipher.ENCRYPT_MODE, algorithm, key)!!.doFinal(bytes)
+fun encryptPacket(key: Key, bytes: ByteArray): ByteArray {
+    return setupPacketCipher(Cipher.ENCRYPT_MODE, key)!!.doFinal(bytes)
+}
+
+fun decryptPacket(key: Key, bytes: ByteArray): ByteArray {
+    return setupPacketCipher(Cipher.DECRYPT_MODE, key)!!.doFinal(bytes)
+}
+
+fun setupPacketCipher(mode: Int, key: Key): Cipher? {
+    val cipher4 = Cipher.getInstance("AES/CFB8/NoPadding")
+    cipher4.init(mode, key, IvParameterSpec(key.encoded))
+    return cipher4
 }
 
 private fun cipherData(mode: Int, key: Key, data: ByteArray): ByteArray {
