@@ -1,5 +1,6 @@
 package ru.cororo.authserver.protocol.version.v1_18
 
+import net.kyori.adventure.nbt.CompoundBinaryTag
 import ru.cororo.authserver.protocol.MinecraftProtocol
 import ru.cororo.authserver.protocol.packet.clientbound.game.*
 import ru.cororo.authserver.protocol.packet.clientbound.login.*
@@ -35,11 +36,14 @@ class Protocol1_18 : MinecraftProtocol() {
         }
 
         game {
+            clientbound(0x0E, ClientboundGameServerDifficultyPacket)
             clientbound(0x18, ClientboundGamePluginMessagePacket)
             clientbound(0x1A, ClientboundGameDisconnectPacket)
             clientbound(0x26, ClientboundGameJoinPacket)
+            clientbound(0x32, ClientboundGamePlayerAbilitiesPacket)
 
             serverbound(0x05, ServerboundGameClientSettingsPacket)
+            serverbound(0x0A, ServerboundGamePluginMessagePacket)
         }
     }
 

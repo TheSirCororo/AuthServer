@@ -24,6 +24,7 @@ dependencies {
     compileOnlyApi("net.kyori:adventure-api:4.10.1")
     compileOnlyApi("net.kyori:adventure-text-serializer-gson:4.10.1")
     compileOnlyApi(kotlin("stdlib"))
+    compileOnlyApi("net.kyori:adventure-nbt:4.10.1")
     testImplementation("io.ktor:ktor-server-tests:$ktor_version")
     testImplementation("org.jetbrains.kotlin:kotlin-test:$kotlin_version")
 }

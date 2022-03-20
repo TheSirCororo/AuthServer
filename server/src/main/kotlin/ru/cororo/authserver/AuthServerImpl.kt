@@ -5,18 +5,18 @@ import io.ktor.client.engine.cio.*
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import io.ktor.util.network.*
-import io.ktor.utils.io.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.ClosedReceiveChannelException
-import kotlinx.coroutines.channels.ClosedSendChannelException
+import net.kyori.adventure.text.Component
 import org.slf4j.LoggerFactory
+import ru.cororo.authserver.player.MinecraftPlayer
 import ru.cororo.authserver.protocol.ProtocolVersions
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketListener
+import ru.cororo.authserver.protocol.packet.clientbound.game.ClientboundGameDisconnectPacket
 import ru.cororo.authserver.protocol.startReadingConnection
 import ru.cororo.authserver.protocol.startWritingConnection
-import ru.cororo.authserver.protocol.utils.generateRSAKeyPair
+import ru.cororo.authserver.protocol.util.generateRSAKeyPair
 import ru.cororo.authserver.session.MinecraftSession
 import ru.cororo.authserver.session.Session
 import java.net.InetSocketAddress
@@ -32,6 +32,7 @@ object AuthServerImpl : AuthServer {
     override val coroutineContext: CoroutineContext =
         Executors.newSingleThreadExecutor().asCoroutineDispatcher() + CoroutineName("AuthServer")
     override val sessions = mutableSetOf<MinecraftSession>()
+    override val players = mutableSetOf<MinecraftPlayer>()
 
     // Key pair for login
     val keys = generateRSAKeyPair()
@@ -55,51 +56,66 @@ object AuthServerImpl : AuthServer {
         }
     }
 
+    private fun onDisconnect(session: MinecraftSession, throwable: Throwable?, socket: Socket) {
+        if (sessions.find { it.connection.socket == socket } != null) {
+            if (throwable != null) {
+                logger.error("Client $session exists with error", throwable)
+            }
+            if (!socket.isClosed) {
+                socket.close()
+            }
+            sessions.remove(session)
+            session.isActive = false
+            if (session.isPlayer) {
+                players.remove(session._player!!)
+                logger.info("Player ${session._player} disconnected")
+            }
+        }
+    }
+
     suspend fun start(hostname: String = "127.0.0.1", port: Int = 5000) {
         withContext(coroutineContext) {
-            address = InetSocketAddress(hostname, port)
-            // Starting tcp server
-            val selector = ActorSelectorManager(coroutineContext)
-            val tcpSocketBuilder = aSocket(selector).tcp()
-            val server = tcpSocketBuilder.bind(address)
-            logger.info("AuthServer bind at $address")
-
             try {
-                while (true) {
-                    // Wait for client connection and launch task for handling it
-                    val socket = server.accept()
-                    launch {
-                        val connection = socket.connection()
-                        val session = createSession(connection)
-                        sessions.add(session)
-                        startReadingConnection(session, session.protocol.inboundPipeline).apply {
-                            invokeOnCompletion {
-                                if (it != null) {
-                                    logger.error("Client $session exists with error", it)
+                address = InetSocketAddress(hostname, port)
+                // Starting tcp server
+                val selector = ActorSelectorManager(coroutineContext)
+                val tcpSocketBuilder = aSocket(selector).tcp()
+                val server = tcpSocketBuilder.bind(address)
+                logger.info("AuthServer bind at $address")
+
+                try {
+                    while (true) {
+                        // Wait for client connection and launch task for handling it
+                        val socket = server.accept()
+                        launch {
+                            val connection = socket.connection()
+                            val session = createSession(connection)
+                            sessions.add(session)
+                            startReadingConnection(session, session.protocol.inboundPipeline).apply {
+                                invokeOnCompletion {
+                                    onDisconnect(session, it, socket)
                                 }
-                                logger.info("Client $session disconnected")
-                                socket.close()
-                                sessions.remove(session)
                             }
-                        }
-                        startWritingConnection(session, session.protocol.outboundPipeline).apply {
-                            invokeOnCompletion {
-                                if (it != null) {
-                                    logger.error("Client $session exists with error", it)
+                            startWritingConnection(session, session.protocol.outboundPipeline).apply {
+                                invokeOnCompletion {
+                                    onDisconnect(session, it, socket)
                                 }
-                                logger.info("Client $session disconnected")
-                                socket.close()
-                                sessions.remove(session)
                             }
                         }
                     }
+                } finally {
+                    withContext(Dispatchers.IO) {
+                        server.close()
+                        server.awaitClosed()
+                    }
+                    this@AuthServerImpl.cancel()
                 }
             } finally {
-                withContext(Dispatchers.IO) {
-                    server.close()
-                    server.awaitClosed()
+                sessions.forEach {
+                    if (it.isPlayer && it.isActive) {
+                        it.sendPacket(ClientboundGameDisconnectPacket(Component.text("Server closed")))
+                    }
                 }
-                this@AuthServerImpl.cancel()
             }
         }
     }

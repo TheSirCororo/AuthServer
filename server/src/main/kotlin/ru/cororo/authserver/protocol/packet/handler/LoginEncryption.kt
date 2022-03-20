@@ -3,79 +3,85 @@ package ru.cororo.authserver.protocol.packet.handler
 import com.google.gson.Gson
 import io.ktor.client.request.*
 import kotlinx.coroutines.launch
-import net.benwoodworth.knbt.*
 import net.kyori.adventure.text.Component
 import ru.cororo.authserver.AuthServerImpl
 import ru.cororo.authserver.logger
 import ru.cororo.authserver.player.GameProfile
+import ru.cororo.authserver.player.MinecraftPlayer
 import ru.cororo.authserver.protocol.MinecraftProtocol
 import ru.cororo.authserver.protocol.Protocolable
 import ru.cororo.authserver.protocol.packet.PacketListener
-import ru.cororo.authserver.protocol.packet.clientbound.game.ClientboundGameDisconnectPacket
-import ru.cororo.authserver.protocol.packet.clientbound.game.ClientboundGameJoinPacket
 import ru.cororo.authserver.protocol.packet.clientbound.login.ClientboundLoginDisconnectPacket
 import ru.cororo.authserver.protocol.packet.clientbound.login.ClientboundLoginSuccessPacket
 import ru.cororo.authserver.protocol.packet.serverbound.login.ServerboundLoginEncryptionResponsePacket
-import ru.cororo.authserver.protocol.utils.*
+import ru.cororo.authserver.protocol.util.*
 import ru.cororo.authserver.session.MinecraftSession
+import ru.cororo.authserver.util.*
+import ru.cororo.authserver.world.Position
 import java.math.BigInteger
 import java.net.URLEncoder
+import java.security.MessageDigest
+import java.security.NoSuchAlgorithmException
 import java.util.*
+
+val MOJANG_SESSION_CHECK_URL = "https://sessionserver.mojang.com/session/minecraft/hasJoined"
 
 object LoginEncryption : PacketListener<ServerboundLoginEncryptionResponsePacket> {
     override val packetClass = ServerboundLoginEncryptionResponsePacket::class.java
 
-    val DIMENSION = buildNbtCompound("") {
-        put("piglin_safe", 0x00.toByte())
-        put("natural", 0x00.toByte())
-        put("ambient_light", 0.5f)
+    val DIMENSION = nbtCompound {
+        put("piglin_safe", 0.toByte())
+        put("natural", 1.toByte())
+        put("ambient_light", 0.0f)
         put("fixed_time", 6000L)
-        put("infiniburn", "")
-        put("respawn_anchor_works", 0x00.toByte())
-        put("has_skylight", 0x00.toByte())
-        put("bed_works", 0x00.toByte())
+        put("infiniburn", "#minecraft:infiniburn_overworld")
+        put("respawn_anchor_works", 0.toByte())
+        put("has_skylight", 1.toByte())
+        put("bed_works", 0.toByte())
         put("effects", "minecraft:overworld")
-        put("has_raids", 0x00.toByte())
-        put("min_y", 1)
-        put("height", 256)
-        put("logical_height", 256)
-        put("coordinate_scale", 1)
-        put("ultrawarm", 0x00.toByte())
-        put("has_ceiling", 0x00.toByte())
+        put("has_raids", 0.toByte())
+        put("min_y", -64)
+        put("height", 384)
+        put("logical_height", 384)
+        put("coordinate_scale", 1.0)
+        put("ultrawarm", 0.toByte())
+        put("has_ceiling", 0.toByte())
     }
 
-    val BIOME = buildNbtCompound {
+    val BIOME = nbtCompound {
         put("type", "minecraft:worldgen/biome")
         putNbtList("value") {
-            addNbtCompound {
-                put("name", "minecraft:void")
-                put("id", 0)
-                putNbtCompound("element") {
-                    put("precipitation", "none")
-                    put("depth", 0.0f)
-                    put("temperature", 0.0f)
-                    put("scale", 0.0f)
-                    put("downfall", 0.0f)
-                    put("category", "none")
-                    putNbtCompound("effects") {
-                        put("sky_color", 8364543)
-                        put("water_fog_color", 8364543)
-                        put("fog_color", 8364543)
-                        put("water_color", 8364543)
+            add(nbtCompound("element") {
+                put("precipitation", "none")
+                put("temperature", 0.5f)
+                put("downfall", 0.5f)
+                put("category", "none")
+                putNbtCompound("effects") {
+                    put("sky_color", 8103167)
+                    put("water_fog_color", 329011)
+                    put("fog_color", 12638463)
+                    put("water_color", 4159204)
+                    putNbtCompound("mood_sound") {
+                        put("block_search_extent", 8)
+                        put("offset", 2.0)
+                        put("sound", "minecraft:ambient.cave")
+                        put("tick_delay", 6000)
                     }
                 }
-            }
+                put("id", 0)
+                put("name", "minecraft:void")
+            })
         }
     }
 
-    val DIMENSION_CODEC = buildNbtCompound("") {
+    val DIMENSION_CODEC = nbtCompound {
         putNbtCompound("minecraft:dimension_type") {
             put("type", "minecraft:dimension_type")
             putNbtList("value") {
                 addNbtCompound {
-                    put("name", "minecraft:overworld")
-                    put("id", 0)
                     put("element", DIMENSION)
+                    put("id", 0)
+                    put("name", "minecraft:overworld")
                 }
             }
         }
@@ -88,8 +94,8 @@ object LoginEncryption : PacketListener<ServerboundLoginEncryptionResponsePacket
         AuthServerImpl.launch {
             val encodedSecret = packet.secret
             val encodedToken = packet.verifyToken
-            val secret = decryptByteToSecretKey(AuthServerImpl.keys.second, encodedSecret)
-            val verifyToken = decryptVerifyToken(encodedToken)
+            val secret = decryptBytesToSecretKey(AuthServerImpl.keys.second, encodedSecret)
+            val verifyToken = decryptBytesToVerifyToken(AuthServerImpl.keys.second, encodedToken)
             if (!Arrays.equals(verifyToken, verifyTokens[protocolable])) {
                 protocolable.sendPacket(
                     ClientboundLoginDisconnectPacket(
@@ -99,72 +105,49 @@ object LoginEncryption : PacketListener<ServerboundLoginEncryptionResponsePacket
                 return@launch
             }
 
-            val digestedData = digestData("", AuthServerImpl.keys.first, secret)
-            if (digestedData == null) {
+            verifyTokens.remove(protocolable)
+            protocolable.secret = secret
+
+            val hash: String = try {
+                val digest = MessageDigest.getInstance("SHA-1")
+                digest.update("".toByteArray(Charsets.UTF_8))
+                digest.update(secret.encoded)
+                digest.update(AuthServerImpl.keys.first.encoded)
+
+                // BigInteger takes care of sign and leading zeroes
+                BigInteger(digest.digest()).toString(16)
+            } catch (ex: NoSuchAlgorithmException) {
+                logger.error("Algorithm SHA-1 not found!")
                 protocolable.sendPacket(
                     ClientboundLoginDisconnectPacket(
-                        Component.text("Failed authorization")
+                        Component.text("Internal server error!")
                     )
                 )
                 return@launch
             }
 
-            val serverId = BigInteger(digestedData).toString(16)
             val username = URLEncoder.encode(protocolable.username, Charsets.UTF_8)
 
             val client = AuthServerImpl.sessionClient
             val response: String =
-                client.get("https://sessionserver.mojang.com/session/minecraft/hasJoined?username=$username&serverId=$serverId")
+                client.get("$MOJANG_SESSION_CHECK_URL?username=$username&serverId=$hash")
             val gameProfile = Gson().fromJson(response, GameProfile::class.java)
-            val uuid = UUID.fromString(
-                gameProfile.id.replaceFirst(
-                    "(\\w{8})(\\w{4})(\\w{4})(\\w{4})(\\w{12})".toRegex(),
-                    "$1-$2-$3-$4-$5"
-                )
-            )
+
             protocolable.sendPacket(
                 ClientboundLoginSuccessPacket(
-                    uuid,
+                    gameProfile.uniqueId,
                     username
                 )
             )
-            protocolable.secret = secret
 
             protocolable.protocol.state = MinecraftProtocol.ProtocolState.GAME
-            protocolable.sendPacket(
-                ClientboundGameDisconnectPacket(
-                    Component.text("Test")
-                )
-            )
-            protocolable.sendPacket(
-                ClientboundGameJoinPacket(
-                    (0..100).random(),
-                    false,
-                    1,
-                    -1,
-                    arrayOf("minecraft:world"),
-                    DIMENSION_CODEC,
-                    DIMENSION,
-                    "minecraft:world",
-                    BigInteger(112312.toString().toByteArray().sha256().copyOfRange(0, 7)).longValueExact(),
-                    20,
-                    8,
-                    debugInfo = false,
-                    respawnScreen = false,
-                    debug = false,
-                    flat = false
-                )
-            )
-//        protocolable.sendPacket(
-//            ClientboundGamePluginMessagePacket(
-//                "minecraft:brand",
-//                byteArrayOf()
-//            )
-//        )
+            protocolable.playerProfile = gameProfile
+            protocolable.isActive = true
+            protocolable.isPlayer = true
 
-            logger.info("Player with name ${protocolable.username} and UUID $uuid has joined from ${protocolable.address}")
+            val player = MinecraftPlayer(protocolable, Position(null, 0.0, 0.0, 0.0))
+            AuthServerImpl.players.add(player)
+            player.joinPlayer()
         }
     }
-
-    fun decryptVerifyToken(token: ByteArray) = decryptUsingKey(AuthServerImpl.keys.second, token)
 }

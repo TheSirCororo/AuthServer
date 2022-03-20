@@ -1,16 +1,15 @@
-package ru.cororo.authserver.protocol.utils
+package ru.cororo.authserver.protocol.util
 
 import io.ktor.utils.io.*
 import io.ktor.utils.io.core.*
-import kotlinx.serialization.encodeToByteArray
-import net.benwoodworth.knbt.Nbt
-import net.benwoodworth.knbt.NbtCompression
-import net.benwoodworth.knbt.NbtTag
-import net.benwoodworth.knbt.NbtVariant
+import io.ktor.utils.io.internal.*
+import net.benwoodworth.knbt.*
+import net.kyori.adventure.nbt.*
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import java.io.IOException
-import java.nio.file.Files.readString
 import java.util.*
 import kotlin.experimental.and
 import kotlin.experimental.or
@@ -164,6 +163,92 @@ fun Output.writeStringArray(array: Array<String>) {
     }
 }
 
-fun Output.writeNBT(nbt: NbtTag) {
-    writeFully(Nbt { compression = NbtCompression.None; variant = NbtVariant.Java }.encodeToByteArray(nbt))
+fun Output.writeNBT(nbt: CompoundBinaryTag) {
+    val outputStream = ByteArrayOutputStream()
+    BinaryTagIO.writer().write(nbt, outputStream)
+    writeFully(outputStream.toByteArray())
+}
+
+fun Output.writeNBT(nbt: MutableMap.MutableEntry<String, CompoundBinaryTag>) {
+    val outputStream = ByteArrayOutputStream()
+    BinaryTagIO.writer().writeNamed(nbt, outputStream)
+    writeFully(outputStream.toByteArray())
+}
+
+fun Output.writeTag(tag: BinaryTag) {
+    writeTag("", tag)
+}
+
+fun Output.writeTag(name: String, tag: BinaryTag) {
+    val bytes = ByteArrayOutputStream()
+    val output = DataOutputStream(bytes)
+    writeTag(name, tag, output)
+    output.flush()
+    writeFully(bytes.toByteArray())
+}
+
+private fun writeTag(name: String, tag: BinaryTag, output: DataOutputStream) {
+    val type = tag.type()
+    val nameBytes: ByteArray = name.toByteArray(Charsets.UTF_8)
+    if (type == BinaryTagTypes.END) {
+        throw IOException("Named TAG_End not permitted.")
+    }
+    output.writeByte(type.id().toInt())
+    output.writeShort(nameBytes.size)
+    output.write(nameBytes)
+    writeTagPayload(tag, output)
+}
+
+private fun writeTagPayload(tag: BinaryTag, output: DataOutputStream) {
+    val type = tag.type()
+    val bytes: ByteArray
+    when (type) {
+        BinaryTagTypes.BYTE -> output.writeByte((tag as ByteBinaryTag).value().toInt())
+        BinaryTagTypes.SHORT -> output.writeShort((tag as ShortBinaryTag).value().toInt())
+        BinaryTagTypes.INT -> output.writeInt((tag as IntBinaryTag).value())
+        BinaryTagTypes.LONG -> output.writeLong((tag as LongBinaryTag).value())
+        BinaryTagTypes.FLOAT -> output.writeFloat((tag as FloatBinaryTag).value())
+        BinaryTagTypes.DOUBLE -> output.writeDouble((tag as DoubleBinaryTag).value())
+        BinaryTagTypes.BYTE_ARRAY -> {
+            bytes = (tag as ByteArrayBinaryTag).value()
+            output.writeInt(bytes.size)
+            output.write(bytes)
+        }
+        BinaryTagTypes.STRING -> {
+            bytes = (tag as StringBinaryTag).value().toByteArray(Charsets.UTF_8)
+            output.writeShort(bytes.size)
+            output.write(bytes)
+        }
+        BinaryTagTypes.LIST -> {
+            val listTag = tag as ListBinaryTag
+            val tags = listTag.toList()
+            output.writeByte(listTag.type().id().toInt())
+            output.writeInt(tags.size)
+            for (child in tags) {
+                writeTagPayload(child, output)
+            }
+        }
+        BinaryTagTypes.COMPOUND -> {
+            val map: Map<String, BinaryTag> = (tag as CompoundBinaryTag).associate { it.key to it.value }
+            for ((key, value) in map) {
+                writeTag(key, value, output)
+            }
+            output.writeByte(0) // end tag
+        }
+        BinaryTagTypes.INT_ARRAY -> {
+            val ints = (tag as IntArrayBinaryTag).value() as IntArray
+            output.writeInt(ints.size)
+            for (value in ints) {
+                output.writeInt(value)
+            }
+        }
+        BinaryTagTypes.LONG_ARRAY -> {
+            val longs = (tag as LongArrayBinaryTag).value() as LongArray
+            output.writeInt(longs.size)
+            for (value in longs) {
+                output.writeLong(value)
+            }
+        }
+        else -> throw IOException("Invalid tag type: $type.")
+    }
 }

@@ -1,5 +1,6 @@
 package ru.cororo.authserver.serializer
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.SerialDescriptor
@@ -10,6 +11,7 @@ import kotlinx.serialization.json.*
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
 
+@OptIn(ExperimentalSerializationApi::class)
 class ComponentSerializer : KSerializer<Component> {
     override val descriptor: SerialDescriptor = SerialDescriptor("Component", JsonElement.serializer().descriptor)
 
@@ -19,7 +21,6 @@ class ComponentSerializer : KSerializer<Component> {
     }
 
     override fun serialize(encoder: Encoder, value: Component) {
-        println(Json.encodeToJsonElement(GsonComponentSerializer.gson().serialize(value)))
         encoder.encodeSerializableValue(
             JsonElement.serializer(),
             Json.parseToJsonElement(GsonComponentSerializer.gson().serialize(value))

@@ -2,6 +2,7 @@ package ru.cororo.authserver
 
 import kotlinx.coroutines.CoroutineScope
 import org.slf4j.Logger
+import ru.cororo.authserver.player.Player
 import ru.cororo.authserver.protocol.Protocolable
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketListener
@@ -23,9 +24,14 @@ interface AuthServer : CoroutineScope, Protocolable {
     val address: InetSocketAddress
 
     /**
-     * Player sessions set
+     * Sessions set. Contains ping status sessions too
      */
     val sessions: Set<Session>
+
+    /**
+     * Players set. Contains only players who passed LOGIN stage
+     */
+    val players: Set<Player>
 
     /**
      * You can't send fake packets to the server without session

@@ -14,5 +14,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.2")
     implementation("net.kyori:adventure-api:4.10.1")
     implementation("net.kyori:adventure-text-serializer-gson:4.10.1")
+    implementation("net.kyori:adventure-nbt:4.10.1")
     implementation(kotlin("stdlib"))
 }

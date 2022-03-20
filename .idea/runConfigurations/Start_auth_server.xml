@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Start auth server" type="JetRunConfigurationType">
+    <option name="MAIN_CLASS_NAME" value="ru.cororo.authserver.AuthServerMain" />
+    <module name="AuthServer.server.main" />
+    <shortenClasspath name="NONE" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/run" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

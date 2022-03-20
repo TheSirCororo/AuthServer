@@ -4,8 +4,8 @@ import io.ktor.utils.io.core.*
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.packet.PacketCodec
-import ru.cororo.authserver.protocol.utils.writeByteArray
-import ru.cororo.authserver.protocol.utils.writeString
+import ru.cororo.authserver.protocol.util.writeByteArray
+import ru.cororo.authserver.protocol.util.writeString
 
 data class ClientboundGamePluginMessagePacket(
     val identifier: String,

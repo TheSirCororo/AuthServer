@@ -1,7 +1,7 @@
 package ru.cororo.authserver.protocol
 
 import io.ktor.util.pipeline.*
-import ru.cororo.authserver.AuthServerImpl
+import ru.cororo.authserver.logger
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.packet.PacketCodec
@@ -13,10 +13,15 @@ import ru.cororo.authserver.session.MinecraftSession
 abstract class MinecraftProtocol(
     inbound: PipelineInterceptor<Any, MinecraftSession> = { packet ->
         if (packet is Packet) {
-            AuthServerImpl.logger.info("receive packet: $packet")
+            logger.info("receive packet: $packet")
             context.handle(packet)
         }
-    }, outBound: PipelineInterceptor<Any, MinecraftSession> = {}
+    }, outBound: PipelineInterceptor<Any, MinecraftSession> = { packet ->
+        if (packet is Packet) {
+            logger.info("send packet: $packet")
+            context.handle(packet)
+        }
+    }
 ) {
     val clientbound = mutableMapOf<Int, PacketCodec<out Packet>>()
     val serverbound = mutableMapOf<Int, PacketCodec<out Packet>>()

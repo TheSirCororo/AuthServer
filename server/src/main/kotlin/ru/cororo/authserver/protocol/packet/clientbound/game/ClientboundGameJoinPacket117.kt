@@ -4,16 +4,14 @@ import io.ktor.utils.io.core.*
 import kotlinx.serialization.encodeToString
 import net.benwoodworth.knbt.NbtCompound
 import net.benwoodworth.knbt.StringifiedNbt
-import net.benwoodworth.knbt.buildNbtCompound
 import net.benwoodworth.knbt.nbtString
 import net.kyori.adventure.nbt.CompoundBinaryTag
-import net.kyori.adventure.nbt.TagStringIO
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.packet.PacketCodec
 import ru.cororo.authserver.protocol.util.*
 
-data class ClientboundGameJoinPacket(
+data class ClientboundGameJoinPacket117(
     val entityId: Int,
     val hardcore: Boolean,
     val gameMode: Byte,
@@ -28,8 +26,7 @@ data class ClientboundGameJoinPacket(
     val debugInfo: Boolean,
     val respawnScreen: Boolean,
     val debug: Boolean,
-    val flat: Boolean,
-    val simulationDistance: Int
+    val flat: Boolean
 ) : Packet {
     override val bound = PacketBound.CLIENT
 
@@ -44,15 +41,13 @@ data class ClientboundGameJoinPacket(
             output.writeByte((packet.gameMode - 1).toByte())
             output.writeStringArray(arrayOf("minecraft:world"))
 
-            output.writeTag(packet.dimensionCodec)
-            output.writeTag(packet.dimension)
+            output.writeNBT(packet.dimensionCodec)
+            output.writeNBT(packet.dimension)
 
             output.writeString(packet.worldName)
             output.writeLong(packet.hashedSeed)
             output.writeVarInt(packet.maxPlayers)
             output.writeVarInt(packet.viewDistance)
-            output.writeVarInt(packet.simulationDistance)
-
             output.writeBoolean(packet.debugInfo)
             output.writeBoolean(packet.respawnScreen)
             output.writeBoolean(packet.debug)
@@ -109,8 +104,6 @@ data class ClientboundGameJoinPacket(
     }
 
     override fun toString(): String {
-
- return "ClientboundGameJoinPacket(entityId=$entityId, hardcore=$hardcore, gameMode=$gameMode, previousGameMode=$previousGameMode, worldNames=${worldNames.contentToString()}, dimensionCodec=${TagStringIO.get().asString(dimensionCodec)}, dimension=${TagStringIO.get().asString(dimension)}, worldName='$worldName', hashedSeed=$hashedSeed, maxPlayers=$maxPlayers, viewDistance=$viewDistance, debugInfo=$debugInfo, respawnScreen=$respawnScreen, debug=$debug, flat=$flat)"
+        return "ClientboundGameJoinPacket(entityId=$entityId, hardcore=$hardcore, gameMode=$gameMode, previousGameMode=$previousGameMode, worldNames=${worldNames.contentToString()}, dimensionCodec=${StringifiedNbt {}.encodeToString(dimensionCodec)}, dimension=$dimension, worldName='$worldName', hashedSeed=$hashedSeed, maxPlayers=$maxPlayers, viewDistance=$viewDistance, debugInfo=$debugInfo, respawnScreen=$respawnScreen, debug=$debug, flat=$flat)"
     }
-
 }

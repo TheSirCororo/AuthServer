@@ -7,6 +7,10 @@ import ru.cororo.authserver.serializer.ComponentSerializer
 import ru.cororo.authserver.serializer.PlayersSerializer
 import ru.cororo.authserver.serializer.ProtocolVersionSerializer
 
+/**
+ * Server info (MOTD)
+ * Serializable with kotlinx.serialization
+ */
 @OptIn(ExperimentalSerializationApi::class)
 @kotlinx.serialization.Serializable
 data class ServerInfo(

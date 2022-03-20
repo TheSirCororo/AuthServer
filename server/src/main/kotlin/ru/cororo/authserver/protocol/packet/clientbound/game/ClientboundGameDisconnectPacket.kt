@@ -5,8 +5,8 @@ import net.kyori.adventure.text.Component
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.packet.PacketCodec
-import ru.cororo.authserver.protocol.utils.readComponent
-import ru.cororo.authserver.protocol.utils.writeComponent
+import ru.cororo.authserver.protocol.util.readComponent
+import ru.cororo.authserver.protocol.util.writeComponent
 
 data class ClientboundGameDisconnectPacket(
     val reason: Component
