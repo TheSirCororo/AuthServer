@@ -1,15 +1,13 @@
 package ru.cororo.authserver.protocol.packet.clientbound.game
 
-import io.ktor.utils.io.core.*
+import io.netty.buffer.ByteBuf
 import kotlinx.serialization.encodeToString
-import net.benwoodworth.knbt.NbtCompound
 import net.benwoodworth.knbt.StringifiedNbt
-import net.benwoodworth.knbt.nbtString
 import net.kyori.adventure.nbt.CompoundBinaryTag
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.packet.PacketCodec
-import ru.cororo.authserver.protocol.util.*
+import ru.cororo.authserver.util.*
 
 data class ClientboundGameJoinPacket117(
     val entityId: Int,
@@ -34,11 +32,11 @@ data class ClientboundGameJoinPacket117(
     companion object : PacketCodec<ClientboundGameJoinPacket> {
         override val packetClass = ClientboundGameJoinPacket::class.java
 
-        override fun write(output: Output, packet: ClientboundGameJoinPacket) {
+        override fun write(output: ByteBuf, packet: ClientboundGameJoinPacket) {
             output.writeInt(packet.entityId)
             output.writeBoolean(packet.hardcore)
-            output.writeUByte(packet.gameMode.toUByte())
-            output.writeByte((packet.gameMode - 1).toByte())
+            output.writeByte(packet.gameMode.toInt())
+            output.writeByte(packet.gameMode - 1)
             output.writeStringArray(arrayOf("minecraft:world"))
 
             output.writeNBT(packet.dimensionCodec)
@@ -54,7 +52,7 @@ data class ClientboundGameJoinPacket117(
             output.writeBoolean(packet.flat)
         }
 
-        override fun read(input: Input): ClientboundGameJoinPacket {
+        override fun read(input: ByteBuf): ClientboundGameJoinPacket {
             throw UnsupportedOperationException()
         }
     }

@@ -12,7 +12,6 @@ interface Protocolable {
     fun <T : Packet> sendPacket(packet: T)
 
     fun <T : Packet> addPacketListener(listener: PacketListener<T>)
-
 }
 
 inline fun <reified T : Packet> Protocolable.addPacketListener(crossinline handle: (T, Protocolable) -> Unit) = addPacketListener(listener(handle))

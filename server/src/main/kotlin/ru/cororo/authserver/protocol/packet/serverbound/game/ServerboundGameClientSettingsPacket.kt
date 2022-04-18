@@ -1,12 +1,11 @@
 package ru.cororo.authserver.protocol.packet.serverbound.game
 
-import io.ktor.utils.io.core.*
+import io.netty.buffer.ByteBuf
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.packet.PacketCodec
-import ru.cororo.authserver.protocol.util.readBoolean
-import ru.cororo.authserver.protocol.util.readString
-import ru.cororo.authserver.protocol.util.readVarInt
+import ru.cororo.authserver.util.readString
+import ru.cororo.authserver.util.readVarInt
 
 class ServerboundGameClientSettingsPacket(
     val locale: String,
@@ -23,18 +22,17 @@ class ServerboundGameClientSettingsPacket(
     companion object : PacketCodec<ServerboundGameClientSettingsPacket> {
         override val packetClass = ServerboundGameClientSettingsPacket::class.java
 
-        override fun write(output: Output, packet: ServerboundGameClientSettingsPacket) {
+        override fun write(output: ByteBuf, packet: ServerboundGameClientSettingsPacket) {
 
         }
 
-        @OptIn(ExperimentalUnsignedTypes::class)
-        override fun read(input: Input): ServerboundGameClientSettingsPacket {
+        override fun read(input: ByteBuf): ServerboundGameClientSettingsPacket {
             return ServerboundGameClientSettingsPacket(
                 input.readString(16),
                 input.readByte(),
                 input.readVarInt(),
                 input.readBoolean(),
-                input.readUByte(),
+                input.readByte().toUByte(),
                 input.readVarInt(),
                 input.readBoolean(),
                 input.readBoolean()

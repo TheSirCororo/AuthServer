@@ -2,21 +2,17 @@ package ru.cororo.authserver
 
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
-import io.ktor.network.selector.*
-import io.ktor.network.sockets.*
 import io.ktor.util.network.*
+import io.netty.channel.socket.SocketChannel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import net.kyori.adventure.text.Component
 import org.slf4j.LoggerFactory
+import ru.cororo.authserver.network.NetworkServer
 import ru.cororo.authserver.player.MinecraftPlayer
 import ru.cororo.authserver.protocol.ProtocolVersions
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketListener
-import ru.cororo.authserver.protocol.packet.clientbound.game.ClientboundGameDisconnectPacket
-import ru.cororo.authserver.protocol.startReadingConnection
-import ru.cororo.authserver.protocol.startWritingConnection
-import ru.cororo.authserver.protocol.util.generateRSAKeyPair
+import ru.cororo.authserver.util.generateRSAKeyPair
 import ru.cororo.authserver.session.MinecraftSession
 import ru.cororo.authserver.session.Session
 import java.net.InetSocketAddress
@@ -56,16 +52,17 @@ object AuthServerImpl : AuthServer {
         }
     }
 
-    private fun onDisconnect(session: MinecraftSession, throwable: Throwable?, socket: Socket) {
-        if (sessions.find { it.connection.socket == socket } != null) {
+    fun onDisconnect(session: MinecraftSession, throwable: Throwable?, socket: io.netty.channel.Channel) {
+        if (sessions.find { it.connection == socket } != null) {
             if (throwable != null) {
                 logger.error("Client $session exists with error", throwable)
             }
-            if (!socket.isClosed) {
+            if (socket.isActive) {
                 socket.close()
             }
             sessions.remove(session)
             session.isActive = false
+            println("session $session disconnect")
             if (session.isPlayer) {
                 players.remove(session._player!!)
                 logger.info("Player ${session._player} disconnected")
@@ -74,54 +71,14 @@ object AuthServerImpl : AuthServer {
     }
 
     suspend fun start(hostname: String = "127.0.0.1", port: Int = 5000) {
-        withContext(coroutineContext) {
-            try {
-                address = InetSocketAddress(hostname, port)
-                // Starting tcp server
-                val selector = ActorSelectorManager(coroutineContext)
-                val tcpSocketBuilder = aSocket(selector).tcp()
-                val server = tcpSocketBuilder.bind(address)
-                logger.info("AuthServer bind at $address")
-
-                try {
-                    while (true) {
-                        // Wait for client connection and launch task for handling it
-                        val socket = server.accept()
-                        launch {
-                            val connection = socket.connection()
-                            val session = createSession(connection)
-                            sessions.add(session)
-                            startReadingConnection(session, session.protocol.inboundPipeline).apply {
-                                invokeOnCompletion {
-                                    onDisconnect(session, it, socket)
-                                }
-                            }
-                            startWritingConnection(session, session.protocol.outboundPipeline).apply {
-                                invokeOnCompletion {
-                                    onDisconnect(session, it, socket)
-                                }
-                            }
-                        }
-                    }
-                } finally {
-                    withContext(Dispatchers.IO) {
-                        server.close()
-                        server.awaitClosed()
-                    }
-                    this@AuthServerImpl.cancel()
-                }
-            } finally {
-                sessions.forEach {
-                    if (it.isPlayer && it.isActive) {
-                        it.sendPacket(ClientboundGameDisconnectPacket(Component.text("Server closed")))
-                    }
-                }
-            }
+        withContext(Dispatchers.IO) {
+            NetworkServer.bind(hostname, port)
+            NetworkServer.serverChannel.closeFuture().syncUninterruptibly()
         }
     }
 
-    private fun createSession(connection: Connection): MinecraftSession {
-        val socketAddress = connection.socket.remoteAddress
+    fun createSession(connection: SocketChannel): MinecraftSession {
+        val socketAddress = connection.remoteAddress()
         val inetAddress = InetSocketAddress(socketAddress.hostname, socketAddress.port)
         return MinecraftSession(connection, Channel(), ProtocolVersions.default, inetAddress)
     }

@@ -1,12 +1,12 @@
 package ru.cororo.authserver.protocol.packet.clientbound.login
 
-import io.ktor.utils.io.core.*
+import io.netty.buffer.ByteBuf
 import net.kyori.adventure.text.Component
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.packet.PacketCodec
-import ru.cororo.authserver.protocol.util.readComponent
-import ru.cororo.authserver.protocol.util.writeComponent
+import ru.cororo.authserver.util.readComponent
+import ru.cororo.authserver.util.writeComponent
 
 data class ClientboundLoginDisconnectPacket(
     val reason: Component
@@ -16,11 +16,11 @@ data class ClientboundLoginDisconnectPacket(
     companion object : PacketCodec<ClientboundLoginDisconnectPacket> {
         override val packetClass = ClientboundLoginDisconnectPacket::class.java
 
-        override fun read(input: Input): ClientboundLoginDisconnectPacket {
+        override fun read(input: ByteBuf): ClientboundLoginDisconnectPacket {
             return ClientboundLoginDisconnectPacket(input.readComponent())
         }
 
-        override fun write(output: Output, packet: ClientboundLoginDisconnectPacket) {
+        override fun write(output: ByteBuf, packet: ClientboundLoginDisconnectPacket) {
             output.writeComponent(packet.reason)
         }
     }

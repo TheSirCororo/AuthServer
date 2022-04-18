@@ -1,6 +1,6 @@
 package ru.cororo.authserver.protocol.packet.serverbound.status
 
-import io.ktor.utils.io.core.*
+import io.netty.buffer.ByteBuf
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.packet.PacketCodec
@@ -13,9 +13,9 @@ data class ServerboundStatusPingPacket(
     companion object : PacketCodec<ServerboundStatusPingPacket> {
         override val packetClass = ServerboundStatusPingPacket::class.java
 
-        override fun write(output: Output, packet: ServerboundStatusPingPacket) {}
+        override fun write(output: ByteBuf, packet: ServerboundStatusPingPacket) {}
 
-        override fun read(input: Input): ServerboundStatusPingPacket {
+        override fun read(input: ByteBuf): ServerboundStatusPingPacket {
             return ServerboundStatusPingPacket(input.readLong())
         }
     }

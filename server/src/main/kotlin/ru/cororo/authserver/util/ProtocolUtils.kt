@@ -1,20 +1,22 @@
-package ru.cororo.authserver.protocol.util
+package ru.cororo.authserver.util
 
 import io.ktor.utils.io.*
 import io.ktor.utils.io.core.*
-import io.ktor.utils.io.internal.*
-import net.benwoodworth.knbt.*
+import io.netty.buffer.ByteBuf
+import io.netty.buffer.Unpooled
 import net.kyori.adventure.nbt.*
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.io.IOException
+import java.nio.file.Files.readString
+import java.nio.file.Files.writeString
 import java.util.*
 import kotlin.experimental.and
 import kotlin.experimental.or
 
-suspend fun ByteReadChannel.readVarInt(): Int {
+fun ByteBuf.readVarInt(): Int {
     var numRead = 0
     var result = 0
     var read: Byte
@@ -30,7 +32,7 @@ suspend fun ByteReadChannel.readVarInt(): Int {
     return result
 }
 
-suspend fun ByteWriteChannel.writeVarInt(int: Int) {
+fun ByteBuf.writeVarInt(int: Int) {
     var value = int
     do {
         var temp = (value and 127).toByte()
@@ -38,39 +40,11 @@ suspend fun ByteWriteChannel.writeVarInt(int: Int) {
         if (value != 0) {
             temp = temp or 128.toByte()
         }
-        writeByte(temp)
+        writeByte(temp.toInt())
     } while (value != 0)
 }
 
-fun Input.readVarInt(): Int {
-    var numRead = 0
-    var result = 0
-    var read: Byte
-    do {
-        read = readByte()
-        val value = (read and 127).toInt()
-        result = result or (value shl 7 * numRead)
-        numRead++
-        if (numRead > 5) {
-            throw IOException("VarInt is too big")
-        }
-    } while (read and 128.toByte() != 0.toByte())
-    return result
-}
-
-fun Output.writeVarInt(i: Int) {
-    var value = i
-    do {
-        var temp = (value and 127).toByte()
-        value = value ushr 7
-        if (value != 0) {
-            temp = temp or 128.toByte()
-        }
-        writeByte(temp)
-    } while (value != 0)
-}
-
-fun Input.readVarLong(): Long {
+fun ByteBuf.readVarLong(): Long {
     var value: Long = 0
     var length = 0
     var currentByte: Byte
@@ -89,102 +63,99 @@ fun Input.readVarLong(): Long {
     return value
 }
 
-fun Output.writeVarLong(i: Long) {
+fun ByteBuf.writeVarLong(i: Long) {
     var value = i
     while (true) {
         if (value and 0x7F.inv() == 0L) {
-            writeByte(value.toByte())
+            writeByte(value.toInt())
             return
         }
-        writeByte((value and 0x7F or 0x80).toByte())
+        writeByte((value and 0x7F or 0x80).toInt())
         // Note: >>> means that the sign bit is shifted with the rest of the number rather than being left alone
         value = value ushr 7
     }
 }
 
-fun Output.writeBoolean(boolean: Boolean) = writeByte(if (boolean) 1.toByte() else 0.toByte())
-fun Input.readBoolean(): Boolean = readByte() == 1.toByte()
-
 const val DEFAULT_MAX_STRING_SIZE = 65536 // 64KiB
 
-fun Input.readString(capacity: Int = DEFAULT_MAX_STRING_SIZE): String {
+fun ByteBuf.readString(capacity: Int = DEFAULT_MAX_STRING_SIZE): String {
     val length = readVarInt()
     return readString(capacity, length)
 }
 
-fun Input.readString(capacity: Int, length: Int): String {
+fun ByteBuf.readString(capacity: Int, length: Int): String {
     check(length >= 0) { "Hot a negative-length string ($length)" }
     check(length <= capacity * 4) { "Bad string size (got $length, maximum is $capacity)" }
 //    check(availableForRead >= length) {
 //        "Trying to read a string that is too long (wanted $length, only have $availableForRead)"
 //    }
-    val string = String(readBytes(length))
+    val string = String(Unpooled.copiedBuffer(readBytes(length)).array())
     check(string.length <= capacity) { "Got a too-long string (got ${string.length}, max $capacity)" }
     return string
 }
 
-fun Output.writeString(string: String) {
+fun ByteBuf.writeString(string: String) {
     val bytes = string.toByteArray()
     writeVarInt(bytes.size)
-    writeFully(bytes)
+    writeBytes(bytes)
 }
 
-fun Output.writeUUID(uuid: UUID) {
+fun ByteBuf.writeUUID(uuid: UUID) {
     writeLong(uuid.mostSignificantBits)
     writeLong(uuid.leastSignificantBits)
 }
 
-fun Output.writeComponent(component: Component) {
+fun ByteBuf.writeComponent(component: Component) {
     writeString(GsonComponentSerializer.gson().serialize(component))
 }
 
-fun Input.readComponent(): Component {
+fun ByteBuf.readComponent(): Component {
     return GsonComponentSerializer.gson().deserialize(readString())
 }
 
-fun Input.readUUID(): UUID {
+fun ByteBuf.readUUID(): UUID {
     return UUID(readLong(), readLong())
 }
 
-fun Input.readByteArray(): ByteArray {
+fun ByteBuf.readByteArray(): ByteArray {
     val length: Int = readVarInt()
-    return readBytes(length)
+    return Unpooled.copiedBuffer(readBytes(length)).array()
 }
 
-fun Output.writeByteArray(array: ByteArray) {
+fun ByteBuf.writeByteArray(array: ByteArray) {
     writeVarInt(array.size)
-    writeFully(array)
+    writeBytes(array)
 }
 
-fun Output.writeStringArray(array: Array<String>) {
+fun ByteBuf.writeStringArray(array: Array<String>) {
     writeVarInt(array.size)
     array.forEach {
         writeString(it)
     }
 }
 
-fun Output.writeNBT(nbt: CompoundBinaryTag) {
+fun ByteBuf.writeNBT(nbt: CompoundBinaryTag) {
     val outputStream = ByteArrayOutputStream()
     BinaryTagIO.writer().write(nbt, outputStream)
-    writeFully(outputStream.toByteArray())
+    writeBytes(outputStream.toByteArray())
 }
 
-fun Output.writeNBT(nbt: MutableMap.MutableEntry<String, CompoundBinaryTag>) {
+fun ByteBuf.writeNBT(nbt: MutableMap.MutableEntry<String, CompoundBinaryTag>) {
     val outputStream = ByteArrayOutputStream()
     BinaryTagIO.writer().writeNamed(nbt, outputStream)
-    writeFully(outputStream.toByteArray())
+    writeBytes(outputStream.toByteArray())
 }
 
-fun Output.writeTag(tag: BinaryTag) {
+fun ByteBuf.writeTag(tag: BinaryTag) {
     writeTag("", tag)
 }
 
-fun Output.writeTag(name: String, tag: BinaryTag) {
+fun ByteBuf.writeTag(name: String, tag: BinaryTag) {
     val bytes = ByteArrayOutputStream()
     val output = DataOutputStream(bytes)
     writeTag(name, tag, output)
     output.flush()
-    writeFully(bytes.toByteArray())
+    writeBytes(bytes.toByteArray())
 }
 
 private fun writeTag(name: String, tag: BinaryTag, output: DataOutputStream) {

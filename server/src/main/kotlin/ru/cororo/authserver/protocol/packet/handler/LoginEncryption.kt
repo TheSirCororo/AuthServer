@@ -14,7 +14,6 @@ import ru.cororo.authserver.protocol.packet.PacketListener
 import ru.cororo.authserver.protocol.packet.clientbound.login.ClientboundLoginDisconnectPacket
 import ru.cororo.authserver.protocol.packet.clientbound.login.ClientboundLoginSuccessPacket
 import ru.cororo.authserver.protocol.packet.serverbound.login.ServerboundLoginEncryptionResponsePacket
-import ru.cororo.authserver.protocol.util.*
 import ru.cororo.authserver.session.MinecraftSession
 import ru.cororo.authserver.util.*
 import ru.cororo.authserver.world.Position
@@ -106,7 +105,6 @@ object LoginEncryption : PacketListener<ServerboundLoginEncryptionResponsePacket
             }
 
             verifyTokens.remove(protocolable)
-            protocolable.secret = secret
 
             val hash: String = try {
                 val digest = MessageDigest.getInstance("SHA-1")
@@ -144,6 +142,7 @@ object LoginEncryption : PacketListener<ServerboundLoginEncryptionResponsePacket
             protocolable.playerProfile = gameProfile
             protocolable.isActive = true
             protocolable.isPlayer = true
+            protocolable.secret = secret
 
             val player = MinecraftPlayer(protocolable, Position(null, 0.0, 0.0, 0.0))
             AuthServerImpl.players.add(player)

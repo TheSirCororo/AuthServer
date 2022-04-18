@@ -1,7 +1,7 @@
 package ru.cororo.authserver.protocol.packet
 
-import io.ktor.utils.io.core.*
-import java.io.ByteArrayOutputStream
+import io.netty.buffer.ByteBuf
+import io.netty.buffer.Unpooled
 import javax.crypto.Cipher
 import javax.crypto.SecretKey
 import javax.crypto.ShortBufferException
@@ -11,12 +11,12 @@ class PacketCrypt(sharedSecret: SecretKey) {
     private val encodeBuf = PacketCryptBuffer(Cipher.ENCRYPT_MODE, sharedSecret)
     private val decodeBuf = PacketCryptBuffer(Cipher.DECRYPT_MODE, sharedSecret)
 
-    fun encode(msg: ByteReadPacket): ByteArray {
-        return encodeBuf.crypt(msg)
+    fun encode(msg: ByteBuf, out: MutableList<Any>) {
+        encodeBuf.crypt(msg, out)
     }
 
-    fun decode(msg: ByteReadPacket): ByteArray {
-        return decodeBuf.crypt(msg)
+    fun decode(msg: ByteBuf, out: MutableList<Any>) {
+        decodeBuf.crypt(msg, out)
     }
 }
 
@@ -28,15 +28,15 @@ class PacketCryptBuffer internal constructor(
         init(mode, sharedSecret, IvParameterSpec(sharedSecret.encoded))
     }
 
-    fun crypt(msg: ByteReadPacket): ByteArray {
-        val outBuffer = ByteArrayOutputStream()
+    fun crypt(msg: ByteBuf, out: MutableList<Any>) {
+        val outBuffer = Unpooled.buffer()
 
         try {
-            outBuffer.writeBytes(cipher.update(msg.readBytes()))
+            outBuffer.writeBytes(cipher.update(msg.array()))
         } catch (e: ShortBufferException) {
             throw AssertionError("Encryption buffer was too short", e)
         }
 
-        return outBuffer.toByteArray()
+        out.add(outBuffer)
     }
 }

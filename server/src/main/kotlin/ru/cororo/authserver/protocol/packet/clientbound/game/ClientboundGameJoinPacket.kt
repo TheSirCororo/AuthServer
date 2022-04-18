@@ -1,17 +1,12 @@
 package ru.cororo.authserver.protocol.packet.clientbound.game
 
-import io.ktor.utils.io.core.*
-import kotlinx.serialization.encodeToString
-import net.benwoodworth.knbt.NbtCompound
-import net.benwoodworth.knbt.StringifiedNbt
-import net.benwoodworth.knbt.buildNbtCompound
-import net.benwoodworth.knbt.nbtString
+import io.netty.buffer.ByteBuf
 import net.kyori.adventure.nbt.CompoundBinaryTag
 import net.kyori.adventure.nbt.TagStringIO
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.packet.PacketCodec
-import ru.cororo.authserver.protocol.util.*
+import ru.cororo.authserver.util.*
 
 data class ClientboundGameJoinPacket(
     val entityId: Int,
@@ -37,15 +32,15 @@ data class ClientboundGameJoinPacket(
     companion object : PacketCodec<ClientboundGameJoinPacket> {
         override val packetClass = ClientboundGameJoinPacket::class.java
 
-        override fun write(output: Output, packet: ClientboundGameJoinPacket) {
+        override fun write(output: ByteBuf, packet: ClientboundGameJoinPacket) {
             output.writeInt(packet.entityId)
             output.writeBoolean(packet.hardcore)
-            output.writeUByte(packet.gameMode.toUByte())
-            output.writeByte((packet.gameMode - 1).toByte())
+            output.writeByte(packet.gameMode.toInt())
+            output.writeByte(packet.gameMode - 1)
             output.writeStringArray(arrayOf("minecraft:world"))
 
-            output.writeTag(packet.dimensionCodec)
-            output.writeTag(packet.dimension)
+            output.writeNBT(packet.dimensionCodec)
+            output.writeNBT(packet.dimension)
 
             output.writeString(packet.worldName)
             output.writeLong(packet.hashedSeed)
@@ -59,7 +54,7 @@ data class ClientboundGameJoinPacket(
             output.writeBoolean(packet.flat)
         }
 
-        override fun read(input: Input): ClientboundGameJoinPacket {
+        override fun read(input: ByteBuf): ClientboundGameJoinPacket {
             throw UnsupportedOperationException()
         }
     }
@@ -110,7 +105,11 @@ data class ClientboundGameJoinPacket(
 
     override fun toString(): String {
 
- return "ClientboundGameJoinPacket(entityId=$entityId, hardcore=$hardcore, gameMode=$gameMode, previousGameMode=$previousGameMode, worldNames=${worldNames.contentToString()}, dimensionCodec=${TagStringIO.get().asString(dimensionCodec)}, dimension=${TagStringIO.get().asString(dimension)}, worldName='$worldName', hashedSeed=$hashedSeed, maxPlayers=$maxPlayers, viewDistance=$viewDistance, debugInfo=$debugInfo, respawnScreen=$respawnScreen, debug=$debug, flat=$flat)"
+        return "ClientboundGameJoinPacket(entityId=$entityId, hardcore=$hardcore, gameMode=$gameMode, previousGameMode=$previousGameMode, worldNames=${worldNames.contentToString()}, dimensionCodec=${
+            TagStringIO.get().asString(dimensionCodec)
+        }, dimension=${
+            TagStringIO.get().asString(dimension)
+        }, worldName='$worldName', hashedSeed=$hashedSeed, maxPlayers=$maxPlayers, viewDistance=$viewDistance, debugInfo=$debugInfo, respawnScreen=$respawnScreen, debug=$debug, flat=$flat)"
     }
 
 }

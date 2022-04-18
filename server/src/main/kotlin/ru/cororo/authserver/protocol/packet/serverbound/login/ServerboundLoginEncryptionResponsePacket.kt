@@ -1,10 +1,10 @@
 package ru.cororo.authserver.protocol.packet.serverbound.login
 
-import io.ktor.utils.io.core.*
+import io.netty.buffer.ByteBuf
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.packet.PacketCodec
-import ru.cororo.authserver.protocol.util.readByteArray
+import ru.cororo.authserver.util.readByteArray
 
 data class ServerboundLoginEncryptionResponsePacket(
     val secret: ByteArray,
@@ -15,9 +15,9 @@ data class ServerboundLoginEncryptionResponsePacket(
     companion object : PacketCodec<ServerboundLoginEncryptionResponsePacket> {
         override val packetClass = ServerboundLoginEncryptionResponsePacket::class.java
 
-        override fun write(output: Output, packet: ServerboundLoginEncryptionResponsePacket) {}
+        override fun write(output: ByteBuf, packet: ServerboundLoginEncryptionResponsePacket) {}
 
-        override fun read(input: Input): ServerboundLoginEncryptionResponsePacket {
+        override fun read(input: ByteBuf): ServerboundLoginEncryptionResponsePacket {
             val secret = input.readByteArray()
             val verifyToken = input.readByteArray()
             return ServerboundLoginEncryptionResponsePacket(secret, verifyToken)

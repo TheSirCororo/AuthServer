@@ -1,11 +1,11 @@
 package ru.cororo.authserver.protocol.packet.serverbound.game
 
-import io.ktor.utils.io.core.*
+import io.netty.buffer.ByteBuf
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.packet.PacketCodec
-import ru.cororo.authserver.protocol.util.readByteArray
-import ru.cororo.authserver.protocol.util.readString
+import ru.cororo.authserver.util.readByteArray
+import ru.cororo.authserver.util.readString
 
 data class ServerboundGamePluginMessagePacket(
     val channel: String,
@@ -34,11 +34,11 @@ data class ServerboundGamePluginMessagePacket(
     companion object : PacketCodec<ServerboundGamePluginMessagePacket> {
         override val packetClass = ServerboundGamePluginMessagePacket::class.java
 
-        override fun write(output: Output, packet: ServerboundGamePluginMessagePacket) {
+        override fun write(output: ByteBuf, packet: ServerboundGamePluginMessagePacket) {
 
         }
 
-        override fun read(input: Input): ServerboundGamePluginMessagePacket {
+        override fun read(input: ByteBuf): ServerboundGamePluginMessagePacket {
             return ServerboundGamePluginMessagePacket(input.readString(), input.readByteArray())
         }
     }

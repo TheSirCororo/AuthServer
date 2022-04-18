@@ -1,6 +1,5 @@
 package ru.cororo.authserver.protocol.version.v1_18
 
-import net.kyori.adventure.nbt.CompoundBinaryTag
 import ru.cororo.authserver.protocol.MinecraftProtocol
 import ru.cororo.authserver.protocol.packet.clientbound.game.*
 import ru.cororo.authserver.protocol.packet.clientbound.login.*

@@ -1,6 +1,6 @@
 package ru.cororo.authserver.protocol.packet.serverbound.status
 
-import io.ktor.utils.io.core.*
+import io.netty.buffer.ByteBuf
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.packet.PacketCodec
@@ -12,7 +12,7 @@ object ServerboundStatusRequestPacket : Packet, PacketCodec<ServerboundStatusReq
 
     override val packetClass = javaClass
 
-    override fun write(output: Output, packet: ServerboundStatusRequestPacket) {}
+    override fun write(output: ByteBuf, packet: ServerboundStatusRequestPacket) {}
 
-    override fun read(input: Input) = ServerboundStatusRequestPacket
+    override fun read(input: ByteBuf) = ServerboundStatusRequestPacket
 }

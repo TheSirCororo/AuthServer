@@ -1,11 +1,11 @@
 package ru.cororo.authserver.protocol.packet.clientbound.login
 
-import io.ktor.utils.io.core.*
+import io.netty.buffer.ByteBuf
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.packet.PacketCodec
-import ru.cororo.authserver.protocol.util.writeByteArray
-import ru.cororo.authserver.protocol.util.writeString
+import ru.cororo.authserver.util.writeByteArray
+import ru.cororo.authserver.util.writeString
 
 data class ClientboundLoginEncryptionPacket(
     val serverId: String,
@@ -17,7 +17,7 @@ data class ClientboundLoginEncryptionPacket(
     companion object : PacketCodec<ClientboundLoginEncryptionPacket> {
         override val packetClass = ClientboundLoginEncryptionPacket::class.java
 
-        override fun write(output: Output, packet: ClientboundLoginEncryptionPacket) {
+        override fun write(output: ByteBuf, packet: ClientboundLoginEncryptionPacket) {
             output.apply {
                 writeString(packet.serverId)
                 writeByteArray(packet.publicKey)
@@ -25,7 +25,7 @@ data class ClientboundLoginEncryptionPacket(
             }
         }
 
-        override fun read(input: Input): ClientboundLoginEncryptionPacket {
+        override fun read(input: ByteBuf): ClientboundLoginEncryptionPacket {
             return ClientboundLoginEncryptionPacket("", byteArrayOf(), byteArrayOf())
         }
     }

@@ -1,11 +1,6 @@
-package ru.cororo.authserver.protocol.util
+package ru.cororo.authserver.util
 
-import org.bouncycastle.asn1.ASN1InputStream
-import org.bouncycastle.asn1.ASN1Primitive
-import org.bouncycastle.util.io.pem.PemObject
 import ru.cororo.authserver.session.MinecraftSession
-import java.io.ByteArrayInputStream
-import java.io.UnsupportedEncodingException
 import java.security.*
 import javax.crypto.*
 import javax.crypto.spec.SecretKeySpec
@@ -20,22 +15,6 @@ fun generateRSAKeyPair(): Pair<PublicKey, PrivateKey> {
     val privateKey = keypair.private
     val publicKey = keypair.public
     return publicKey to privateKey
-}
-
-private fun ByteArray.toDerObject(): ASN1Primitive {
-    val inStream = ByteArrayInputStream(this)
-    val asnInputStream = ASN1InputStream(inStream)
-
-    return asnInputStream.readObject()
-}
-
-private fun Key.getPemObject(): PemObject {
-    val type = if (this is PublicKey) {
-        "PUBLIC KEY"
-    } else {
-        "PRIVATE KEY"
-    }
-    return PemObject(type, encoded)
 }
 
 fun decryptBytesToSecretKey(privateKey: PrivateKey, bytes: ByteArray): SecretKey {

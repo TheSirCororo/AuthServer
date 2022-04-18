@@ -26,5 +26,5 @@ data class GameProfile(
 data class Property(
     val name: String,
     val value: String,
-    val sign: String
+    val sign: String?
 )

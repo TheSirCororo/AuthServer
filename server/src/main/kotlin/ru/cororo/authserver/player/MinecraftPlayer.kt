@@ -1,18 +1,13 @@
 package ru.cororo.authserver.player
 
-import ru.cororo.authserver.AuthServerImpl.address
 import ru.cororo.authserver.logger
-import ru.cororo.authserver.protocol.ProtocolVersion
 import ru.cororo.authserver.protocol.ProtocolVersions
 import ru.cororo.authserver.protocol.packet.clientbound.game.*
 import ru.cororo.authserver.protocol.packet.handler.LoginEncryption
-import ru.cororo.authserver.protocol.util.sha256
+import ru.cororo.authserver.util.sha256
 import ru.cororo.authserver.session.MinecraftSession
 import ru.cororo.authserver.session.Session
-import ru.cororo.authserver.world.Difficulty
 import ru.cororo.authserver.world.Position
-import java.math.BigInteger
-import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.util.*
 

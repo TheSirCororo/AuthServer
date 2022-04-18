@@ -1,6 +1,6 @@
 package ru.cororo.authserver.session
 
-import io.ktor.network.sockets.*
+import io.netty.channel.socket.SocketChannel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
@@ -28,7 +28,7 @@ import java.util.*
 import javax.crypto.SecretKey
 
 data class MinecraftSession(
-    val connection: Connection,
+    val connection: SocketChannel,
     val sendChannel: Channel<Any>,
     override var protocolVersion: ProtocolVersion,
     override val address: InetSocketAddress
@@ -109,7 +109,7 @@ data class MinecraftSession(
     }
 
     override fun toString(): String {
-        return "MinecraftSession(username=$username, address=${address.address}, protocolVersion=$protocolVersion)"
+        return "MinecraftSession(username=$username, address=${address.address})"
     }
 
     override fun equals(other: Any?): Boolean {
@@ -117,5 +117,20 @@ data class MinecraftSession(
         if (other === this) return true
         if (other !is MinecraftSession) return false
         return username == other.username && uniqueId == other.uniqueId && address == other.address && protocolVersion == other.protocolVersion
+    }
+
+    override fun hashCode(): Int {
+        var result = connection.hashCode()
+        result = 31 * result + sendChannel.hashCode()
+        result = 31 * result + protocolVersion.hashCode()
+        result = 31 * result + address.hashCode()
+        result = 31 * result + (username?.hashCode() ?: 0)
+        result = 31 * result + (playerProfile?.hashCode() ?: 0)
+        result = 31 * result + uniqueId.hashCode()
+        result = 31 * result + isActive.hashCode()
+        result = 31 * result + isPlayer.hashCode()
+        result = 31 * result + (secret?.hashCode() ?: 0)
+        result = 31 * result + listeners.hashCode()
+        return result
     }
 }
