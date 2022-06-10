@@ -27,6 +27,7 @@ object ProtocolVersions {
     val v1_17_1 = ProtocolVersion(756, listOf("1.17.1"))
     val v1_18 = ProtocolVersion(757, listOf("1.18", "1.18.1"))
     val v1_18_2 = ProtocolVersion(758, listOf("1.18.2"))
+    val v1_19 = ProtocolVersion(759, listOf("1.19"))
 
     /**
      * All default supported protocol versions in list
@@ -54,7 +55,8 @@ object ProtocolVersions {
         v1_17,
         v1_17_1,
         v1_18,
-        v1_18_2
+        v1_18_2,
+        v1_19
     )
 
     /**

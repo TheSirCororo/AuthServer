@@ -4,8 +4,8 @@ val logback_version: String by project
 
 plugins {
     application
-    kotlin("jvm") version "1.6.10"
-    kotlin("plugin.serialization") version "1.6.10"
+    kotlin("jvm") version "1.7.0"
+    kotlin("plugin.serialization") version "1.7.0"
     id("com.github.johnrengelman.shadow") version "7.1.2"
 }
 
@@ -28,9 +28,7 @@ allprojects {
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
         kotlinOptions {
             jvmTarget = "17"
-            targetCompatibility = "17"
-            sourceCompatibility = "17"
-            freeCompilerArgs = listOf("-opt-in=kotlin.RequiresOptIn")
+            freeCompilerArgs = listOf("-Xuse-k2")
         }
     }
 }
