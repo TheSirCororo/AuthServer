@@ -1,6 +1,7 @@
 package ru.cororo.authserver.protocol.packet.handler
 
 import com.google.gson.Gson
+import io.ktor.client.call.*
 import io.ktor.client.request.*
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
@@ -128,7 +129,7 @@ object LoginEncryption : PacketListener<ServerboundLoginEncryptionResponsePacket
 
             val client = AuthServerImpl.sessionClient
             val response: String =
-                client.get("$MOJANG_SESSION_CHECK_URL?username=$username&serverId=$hash")
+                client.get("$MOJANG_SESSION_CHECK_URL?username=$username&serverId=$hash").body()
             val gameProfile = Gson().fromJson(response, GameProfile::class.java)
 
             protocolable.sendPacket(

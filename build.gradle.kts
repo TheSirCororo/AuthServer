@@ -13,13 +13,10 @@ allprojects {
     apply(plugin = "kotlin")
     apply(plugin = "kotlinx-serialization")
     apply(plugin = "com.github.johnrengelman.shadow")
+    apply(plugin = "application")
 
     group = "ru.cororo"
     version = "0.0.1"
-
-//    application {
-//        mainClass.set("ru.cororo.authserver.AuthServerMainKt")
-//    }
 
     repositories {
         mavenCentral()
@@ -28,7 +25,11 @@ allprojects {
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
         kotlinOptions {
             jvmTarget = "17"
-            freeCompilerArgs = listOf("-Xuse-k2")
         }
+    }
+
+
+    application {
+        mainClass.set("ru.cororo.authserver.AuthServerMainKt")
     }
 }

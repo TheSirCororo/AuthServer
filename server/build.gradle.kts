@@ -1,3 +1,5 @@
+apply(plugin = "application")
+
 dependencies {
     val ktor_version: String by project
     val logback_version: String by project
@@ -15,6 +17,7 @@ dependencies {
     implementation("net.kyori:adventure-nbt:4.10.1")
     implementation(kotlin("stdlib"))
 }
+
 repositories {
     mavenCentral()
 }
