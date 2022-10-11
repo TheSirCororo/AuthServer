@@ -116,7 +116,8 @@ object LoginEncryption : PacketListener<ServerboundLoginEncryptionResponsePacket
                 // BigInteger takes care of sign and leading zeroes
                 BigInteger(digest.digest()).toString(16)
             } catch (ex: NoSuchAlgorithmException) {
-                logger.error("Algorithm SHA-1 not found!")
+                logger.error("Algorithm not found!")
+                ex.printStackTrace()
                 protocolable.sendPacket(
                     ClientboundLoginDisconnectPacket(
                         Component.text("Internal server error!")

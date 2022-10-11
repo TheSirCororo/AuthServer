@@ -27,9 +27,8 @@ class PacketCodec(val session: MinecraftSession) : MessageToMessageCodec<ByteBuf
     }
 
     override fun decode(ctx: ChannelHandlerContext, msg: ByteBuf, out: MutableList<Any>) {
-        println(msg.readableBytes())
         val packetId = msg.readVarInt()
-        println("[decode] received packet with id $packetId")
+        println("[decode] received packet with id $packetId (readable bytes - ${msg.readableBytes()})")
         val packetCodec = session.protocol.getCodec<Packet>(packetId, PacketBound.SERVER)
         val packet = packetCodec.read(msg)
         if (msg.readableBytes() > 0) {

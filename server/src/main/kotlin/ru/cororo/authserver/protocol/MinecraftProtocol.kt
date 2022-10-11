@@ -1,6 +1,7 @@
 package ru.cororo.authserver.protocol
 
 import io.ktor.util.pipeline.*
+import ru.cororo.authserver.AuthServerImpl
 import ru.cororo.authserver.logger
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
@@ -13,13 +14,15 @@ import ru.cororo.authserver.session.MinecraftSession
 abstract class MinecraftProtocol(
     inbound: PipelineInterceptor<Any, MinecraftSession> = { packet ->
         if (packet is Packet) {
-            logger.info("receive packet: $packet")
+            logger.info("[MinecraftProtocol] receive packet: $packet")
             context.handle(packet)
+            AuthServerImpl.handle(packet, context)
         }
     }, outBound: PipelineInterceptor<Any, MinecraftSession> = { packet ->
         if (packet is Packet) {
-            logger.info("send packet: $packet")
+            logger.info("[MinecraftProtocol] send packet: $packet")
             context.handle(packet)
+            AuthServerImpl.handle(packet, context)
         }
     }
 ) {
@@ -64,10 +67,10 @@ abstract class MinecraftProtocol(
         val codec = when (bound) {
             PacketBound.SERVER ->
                 serverbound[packetId]
-                    ?: throw IllegalArgumentException("Serverbound packet with id $packetId does not exists")
+                    ?: throw IllegalArgumentException("Serverbound packet with id $packetId does not exists [state=$state]")
             PacketBound.CLIENT ->
                 clientbound[packetId]
-                    ?: throw IllegalArgumentException("Serverbound packet with id $packetId does not exists")
+                    ?: throw IllegalArgumentException("Serverbound packet with id $packetId does not exists [state=$state]")
         }
 
         return codec as PacketCodec<T>
@@ -77,11 +80,11 @@ abstract class MinecraftProtocol(
         when (bound) {
             PacketBound.SERVER -> {
                 serverbound.values.find { packet.javaClass == it.packetClass } as? PacketCodec<T>
-                    ?: throw IllegalArgumentException("$packet codec does not exists")
+                    ?: throw IllegalArgumentException("$packet codec does not exists [state=$state]")
             }
             PacketBound.CLIENT -> {
                 clientbound.values.find { packet.javaClass == it.packetClass } as? PacketCodec<T>
-                    ?: throw IllegalArgumentException("$packet codec does not exists")
+                    ?: throw IllegalArgumentException("$packet codec does not exists [state=$state]")
             }
         }
 
@@ -100,11 +103,16 @@ abstract class MinecraftProtocol(
         val defaultProtocol: MinecraftProtocol
 
         init {
-            registeredProtocols[ProtocolVersions.v1_17] = Protocol1_17()
-            registeredProtocols[ProtocolVersions.v1_17_1] = Protocol1_17()
-            registeredProtocols[ProtocolVersions.v1_18] = Protocol1_18()
-            registeredProtocols[ProtocolVersions.v1_18_2] = Protocol1_18()
+            registerVersion(ProtocolVersions.v1_17, Protocol1_17())
+            registerVersion(ProtocolVersions.v1_17_1, Protocol1_17())
+            registerVersion(ProtocolVersions.v1_18, Protocol1_18())
+            registerVersion(ProtocolVersions.v1_18_2, Protocol1_18())
             defaultProtocol = registeredProtocols.values.last()
+        }
+
+        private fun registerVersion(version: ProtocolVersion, protocol: MinecraftProtocol) {
+            registeredProtocols[version] = protocol
+            logger.debug("Protocol $version registered")
         }
 
         fun getByVersion(version: ProtocolVersion): MinecraftProtocol = registeredProtocols[version] ?: defaultProtocol

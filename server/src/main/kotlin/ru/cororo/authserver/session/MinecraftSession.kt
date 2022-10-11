@@ -2,6 +2,7 @@ package ru.cororo.authserver.session
 
 import io.netty.channel.socket.SocketChannel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -15,10 +16,12 @@ import ru.cororo.authserver.protocol.*
 import ru.cororo.authserver.protocol.packet.Packet
 import ru.cororo.authserver.protocol.packet.PacketBound
 import ru.cororo.authserver.protocol.packet.PacketListener
+import ru.cororo.authserver.protocol.packet.clientbound.game.ClientboundGameKeepAlivePacket
 import ru.cororo.authserver.protocol.packet.clientbound.status.ClientboundStatusPongPacket
 import ru.cororo.authserver.protocol.packet.clientbound.status.ClientboundStatusResponsePacket
 import ru.cororo.authserver.protocol.packet.handler.LoginEncryption
 import ru.cororo.authserver.protocol.packet.handler.LoginStartHandler
+import ru.cororo.authserver.protocol.packet.serverbound.game.ServerboundGameKeepAlivePacket
 import ru.cororo.authserver.protocol.packet.serverbound.handshake.ServerboundHandshakePacket
 import ru.cororo.authserver.protocol.packet.serverbound.status.ServerboundStatusPingPacket
 import ru.cororo.authserver.protocol.packet.serverbound.status.ServerboundStatusRequestPacket
@@ -44,39 +47,68 @@ data class MinecraftSession(
     var _player: Player? = null
     override var uniqueId: UUID = UUID(0, 0)
     override var isActive: Boolean = false
+        set(value) {
+            if (value) {
+                AuthServerImpl.launch {
+                    while (this@MinecraftSession.isActive) {
+                        if (this@MinecraftSession.isPlayer && this@MinecraftSession.protocol.state == MinecraftProtocol.ProtocolState.GAME) {
+                            delay(5000L)
+                            lastKeepAliveId = System.currentTimeMillis()
+                            sendPacket(ClientboundGameKeepAlivePacket(lastKeepAliveId))
+                        }
+                    }
+                }
+            }
+
+            field = value
+        }
     override var isPlayer: Boolean = false
     override val player: Player? get() = if (isPlayer && isActive) _player else null
 
     val protocol get() = protocol(protocolVersion)
     var secret: SecretKey? = null
     private val listeners = mutableMapOf<Class<out Packet>, MutableList<PacketListener<out Packet>>>()
+    private var lastKeepAliveId: Long = 0
 
     init {
         addPacketListener<ServerboundHandshakePacket> { packet, session ->
             session as MinecraftSession
-            session.protocolVersion = ProtocolVersions.getByRaw(packet.protocolVersion) ?: ProtocolVersions.default
-            session.protocol.state = MinecraftProtocol.ProtocolState[packet.nextState]
+            if (session == this) {
+                session.protocolVersion = ProtocolVersions.getByRaw(packet.protocolVersion) ?: ProtocolVersions.default
+                session.protocol.state = MinecraftProtocol.ProtocolState[packet.nextState]
+            }
         }
 
         addPacketListener<ServerboundStatusRequestPacket> { _, session ->
             session as MinecraftSession
-            session.sendPacket(
-                ClientboundStatusResponsePacket(
-                    Json.encodeToString(
-                        ServerInfo(
-                            session.protocolVersion,
-                            ServerInfo.Players(0, 20, arrayOf()),
-                            Component.text("Auth Server"),
-                            getImageBase64("server-icon.png")
+            if (session == this) {
+                session.sendPacket(
+                    ClientboundStatusResponsePacket(
+                        Json.encodeToString(
+                            ServerInfo(
+                                session.protocolVersion,
+                                ServerInfo.Players(0, 20, arrayOf()),
+                                Component.text("Auth Server"),
+                                getImageBase64("server-icon.png")
+                            )
                         )
                     )
                 )
-            )
+            }
         }
 
         addPacketListener<ServerboundStatusPingPacket> { packet, session ->
             session as MinecraftSession
-            session.sendPacket(ClientboundStatusPongPacket(packet.payload))
+            if (session == this) {
+                session.sendPacket(ClientboundStatusPongPacket(packet.payload))
+            }
+        }
+
+        addPacketListener<ServerboundGameKeepAlivePacket> { packet, session ->
+            session as MinecraftSession
+            if (session == this && lastKeepAliveId == packet.keepAliveId) {
+                logger.info("Got keep alive packet from $session")
+            }
         }
 
         addPacketListener(LoginStartHandler)
@@ -86,7 +118,7 @@ data class MinecraftSession(
 
     override fun <T : Packet> sendPacket(packet: T) {
         if (packet.bound == PacketBound.SERVER) {
-            logger.error("Cannot send Serverbound packet to client! (packet=$packet)")
+            logger.error("Cannot send serverbound packet to client! (packet=$packet)")
             return
         }
 
@@ -97,13 +129,12 @@ data class MinecraftSession(
     }
 
     override fun <T : Packet> addPacketListener(listener: PacketListener<T>) {
-        listeners.putIfAbsent(listener.packetClass, mutableListOf())
-        listeners[listener.packetClass]!!.add(listener)
+        listeners.getOrPut(listener.packetClass) { mutableListOf() }.add(listener)
     }
 
     @Suppress("UNCHECKED_CAST")
     fun <T : Packet> handle(packet: T) {
-        listeners[packet.javaClass]?.forEach {
+        listeners.filter { it.key.isInstance(packet) }.values.flatten().forEach {
             (it as PacketListener<T>).handle(packet, this)
         }
     }

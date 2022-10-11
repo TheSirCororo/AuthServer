@@ -1,30 +1,28 @@
 package ru.cororo.authserver
 
-import kotlinx.serialization.ExperimentalSerializationApi
 import net.kyori.adventure.text.Component
 import ru.cororo.authserver.protocol.ProtocolVersion
 import ru.cororo.authserver.serializer.ComponentSerializer
-import ru.cororo.authserver.serializer.PlayersSerializer
+import kotlinx.serialization.Serializable
 import ru.cororo.authserver.serializer.ProtocolVersionSerializer
 
 /**
  * Server info (MOTD)
  * Serializable with kotlinx.serialization
  */
-@OptIn(ExperimentalSerializationApi::class)
-@kotlinx.serialization.Serializable
+@Serializable
 data class ServerInfo(
-    @kotlinx.serialization.Serializable(with = ProtocolVersionSerializer::class)
+    @Serializable(with = ProtocolVersionSerializer::class)
     val version: ProtocolVersion,
-    @kotlinx.serialization.Serializable(with = PlayersSerializer::class)
     val players: Players,
-    @kotlinx.serialization.Serializable(with = ComponentSerializer::class)
+    @Serializable(with = ComponentSerializer::class)
     val description: Component,
     val favicon: String
 ) {
+    @Serializable
     data class Players(
-        val max: Int,
         val online: Int,
+        val max: Int,
         val sample: Array<String>
     ) {
         override fun equals(other: Any?): Boolean {

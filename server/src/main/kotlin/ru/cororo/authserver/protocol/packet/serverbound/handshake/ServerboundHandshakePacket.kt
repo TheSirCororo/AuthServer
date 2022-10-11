@@ -15,7 +15,6 @@ data class ServerboundHandshakePacket(
 ) : Packet {
     override val bound = PacketBound.SERVER
 
-    @ExperimentalUnsignedTypes
     companion object : PacketCodec<ServerboundHandshakePacket> {
         override fun write(output: ByteBuf, packet: ServerboundHandshakePacket) {}
 

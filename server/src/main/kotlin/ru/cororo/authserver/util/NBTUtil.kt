@@ -5,18 +5,18 @@ import net.kyori.adventure.nbt.*
 fun nbtCompound(builder: CompoundBinaryTag.Builder.() -> Unit) = CompoundBinaryTag.builder().apply(builder).build()
 
 fun nbtCompound(name: String, builder: CompoundBinaryTag.Builder.() -> Unit) =
-    CompoundBinaryTag.builder().put(nbtCompound(builder)).build()
+    CompoundBinaryTag.builder().put(name, nbtCompound(builder)).build()
 
 fun CompoundBinaryTag.Builder.putNbtCompound(name: String, builder: CompoundBinaryTag.Builder.() -> Unit) =
     put(nbtCompound(name, builder))
 
-fun <T : Number> CompoundBinaryTag.Builder.put(name: String, number: T) = when (number.javaClass) {
-    Int::class.java -> putInt(name, number.toInt())
-    Float::class.java -> putFloat(name, number.toFloat())
-    Double::class.java -> putDouble(name, number.toDouble())
-    Long::class.java -> putLong(name, number.toLong())
-    Short::class.java -> putShort(name, number.toShort())
-    Byte::class.java -> putByte(name, number.toByte())
+inline fun <reified T : Number> CompoundBinaryTag.Builder.put(name: String, number: T) = when (T::class) {
+    Int::class -> putInt(name, number.toInt())
+    Float::class -> putFloat(name, number.toFloat())
+    Double::class -> putDouble(name, number.toDouble())
+    Long::class -> putLong(name, number.toLong())
+    Short::class -> putShort(name, number.toShort())
+    Byte::class -> putByte(name, number.toByte())
     else -> putInt(name, number.toInt())
 }
 

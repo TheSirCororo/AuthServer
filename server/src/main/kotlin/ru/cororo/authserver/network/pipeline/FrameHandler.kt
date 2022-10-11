@@ -3,6 +3,7 @@ package ru.cororo.authserver.network.pipeline
 import io.netty.buffer.ByteBuf
 import io.netty.channel.ChannelHandlerContext
 import io.netty.handler.codec.ByteToMessageCodec
+import ru.cororo.authserver.AuthServerImpl
 import ru.cororo.authserver.util.readVarInt
 import ru.cororo.authserver.util.writeVarInt
 

@@ -24,6 +24,7 @@ object NetworkServer {
             logger.info("Server bound to $hostname:$port")
             serverChannel.closeFuture().syncUninterruptibly()
         } finally {
+            logger.info("Shutting down...")
             bossGroup.shutdownGracefully()
             childGroup.shutdownGracefully()
         }

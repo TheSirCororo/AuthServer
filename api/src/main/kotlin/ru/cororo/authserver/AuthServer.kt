@@ -35,14 +35,14 @@ interface AuthServer : CoroutineScope, Protocolable {
 
     /**
      * You can't send fake packets to the server without session
-     * This function in AuthServer always throws UnsupportedOperationException
-     * @throws IllegalStateException
+     * This function in AuthServer always throws [UnsupportedOperationException]
+     * @throws UnsupportedOperationException
      * @see sendFakePacket
      */
     override fun <T : Packet> sendPacket(packet: T)
 
     /**
-     * It's used to create serverbound packet listener
+     * You can handle serverbound or clientbound packets of any players
      */
     override fun <T : Packet> addPacketListener(listener: PacketListener<T>)
 

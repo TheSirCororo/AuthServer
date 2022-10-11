@@ -6,6 +6,8 @@ import ru.cororo.authserver.player.GameProfile
 import ru.cororo.authserver.player.Player
 import ru.cororo.authserver.protocol.ProtocolVersion
 import ru.cororo.authserver.protocol.Protocolable
+import ru.cororo.authserver.protocol.packet.Packet
+import ru.cororo.authserver.protocol.packet.PacketListener
 import java.net.InetSocketAddress
 import java.util.*
 
@@ -58,4 +60,9 @@ interface Session : Protocolable, UniqueIdHolder, NameHolder {
      * Session (player) name. Equals [username] but not nullable
      */
     override val name: String get() = username ?: ""
+
+    /**
+     * Can be used for packet handling (serverbound or clientbound) only for one session
+     */
+    override fun <T : Packet> addPacketListener(listener: PacketListener<T>)
 }

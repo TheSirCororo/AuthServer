@@ -7,7 +7,7 @@ import ru.cororo.authserver.protocol.packet.PacketCodec
 import ru.cororo.authserver.util.readString
 import ru.cororo.authserver.util.readVarInt
 
-class ServerboundGameClientSettingsPacket(
+data class ServerboundGameClientSettingsPacket(
     val locale: String,
     val viewDistance: Byte,
     val chatMode: Int,
@@ -38,6 +38,5 @@ class ServerboundGameClientSettingsPacket(
                 input.readBoolean()
             )
         }
-
     }
 }

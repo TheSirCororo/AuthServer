@@ -6,6 +6,7 @@ import io.ktor.util.network.*
 import io.netty.channel.socket.SocketChannel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import ru.cororo.authserver.network.NetworkServer
 import ru.cororo.authserver.player.MinecraftPlayer
@@ -19,16 +20,17 @@ import java.net.InetSocketAddress
 import java.util.concurrent.Executors
 import kotlin.coroutines.CoroutineContext
 
-val logger get() = AuthServerImpl.logger
+val logger: Logger get() = AuthServerImpl.logger
 
 object AuthServerImpl : AuthServer {
-    override val logger = LoggerFactory.getLogger("AuthServer")
+    override val logger: Logger = LoggerFactory.getLogger("AuthServer")
     override lateinit var address: InetSocketAddress
         private set
     override val coroutineContext: CoroutineContext =
         Executors.newSingleThreadExecutor().asCoroutineDispatcher() + CoroutineName("AuthServer")
     override val sessions = mutableSetOf<MinecraftSession>()
     override val players = mutableSetOf<MinecraftPlayer>()
+    private val packetListeners = mutableMapOf<Class<out Packet>, MutableList<PacketListener<out Packet>>>()
 
     // Key pair for login
     val keys = generateRSAKeyPair()
@@ -41,9 +43,8 @@ object AuthServerImpl : AuthServer {
         throw UnsupportedOperationException()
     }
 
-    // You can handle serverbound packets
     override fun <T : Packet> addPacketListener(listener: PacketListener<T>) {
-
+        packetListeners.getOrPut(listener.packetClass) { mutableListOf() }.add(listener)
     }
 
     override fun <T : Packet> sendFakePacket(packet: T, session: Session) {
@@ -55,18 +56,26 @@ object AuthServerImpl : AuthServer {
     fun onDisconnect(session: MinecraftSession, throwable: Throwable?, socket: io.netty.channel.Channel) {
         if (sessions.find { it.connection == socket } != null) {
             if (throwable != null) {
-                logger.error("Client $session exists with error", throwable)
+                logger.error("Client $session exit with error", throwable)
             }
+
             if (socket.isActive) {
                 socket.close()
             }
+
             sessions.remove(session)
             session.isActive = false
-            println("session $session disconnect")
             if (session.isPlayer) {
                 players.remove(session._player!!)
                 logger.info("Player ${session._player} disconnected")
             }
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun <T : Packet> handle(packet: T, session: Session) {
+        packetListeners.filter { it.key.isInstance(packet) }.forEach {
+            (it as PacketListener<T>).handle(packet, session)
         }
     }
 

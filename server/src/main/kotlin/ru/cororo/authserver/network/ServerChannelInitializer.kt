@@ -29,7 +29,7 @@ class ServerChannelInitializer : ChannelInitializer<SocketChannel>(), CoroutineS
             .addLast("packet-handler", PacketHandler(session))
         launch {
             while (ch.isActive) {
-                println("receiving packets")
+                println("receiving packets to send")
                 val packet = session.sendChannel.receive()
                 println("[initializer] sending packet $packet")
                 if (packet is Packet) {

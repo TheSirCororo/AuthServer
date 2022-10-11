@@ -49,6 +49,4 @@ interface Player : UniqueIdHolder, NameHolder, Locatable {
      * Player location
      */
     override val position: Position
-
-
 }
