@@ -1,3 +1,5 @@
+apply(plugin = "org.jetbrains.dokka")
+
 plugins {
     `java-library`
 }
