@@ -2,13 +2,10 @@ package ru.cororo.authserver.serializer
 
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
-import kotlinx.serialization.descriptors.PrimitiveKind
-import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.*
-import kotlinx.serialization.serializer
 import ru.cororo.authserver.protocol.ProtocolVersion
 import ru.cororo.authserver.protocol.ProtocolVersions
 
