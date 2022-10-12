@@ -1,4 +1,5 @@
 @file:JvmName("AuthServerMain")
+
 package ru.cororo.authserver
 
 /**
