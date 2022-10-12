@@ -4,7 +4,6 @@ import net.kyori.adventure.text.Component
 import ru.cororo.authserver.protocol.ProtocolVersion
 import ru.cororo.authserver.serializer.ComponentSerializer
 import kotlinx.serialization.Serializable
-import ru.cororo.authserver.serializer.ProtocolVersionSerializer
 
 /**
  * Server info (MOTD)
@@ -12,7 +11,6 @@ import ru.cororo.authserver.serializer.ProtocolVersionSerializer
  */
 @Serializable
 data class ServerInfo(
-    @Serializable(with = ProtocolVersionSerializer::class)
     val version: ProtocolVersion,
     val players: Players,
     @Serializable(with = ComponentSerializer::class)
