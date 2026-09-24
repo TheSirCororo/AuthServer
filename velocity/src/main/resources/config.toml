@@ -1,0 +1,31 @@
+# AuthServer Velocity plugin.
+#
+# velocity.toml must use player-info-forwarding-mode = "modern" (or legacy/bungeeguard) with the same secret as
+# the auth server, and online-mode = true so licensed players can be authenticated by the proxy.
+
+# Name of the auth server in velocity.toml [servers]. New players are sent there first.
+auth-server = "auth"
+
+# HTTP API of the auth server (api.enabled = true in its config.yml).
+api-url = "http://127.0.0.1:8765"
+
+# Must equal proxy.secret in the auth server's config.yml.
+secret = ""
+
+# Licensed players skip the auth server and go straight to the online group.
+premium-bypass = false
+
+# A new player who picks the licensed login in the auth server's menu has to connect again, now through Mojang.
+# true transfers 1.20.5+ clients back automatically; this needs accepts-transfers = true in velocity.toml.
+# Older clients, and everyone when false, are disconnected with a request to reconnect.
+licensed-transfer = false
+
+# When the auth server API cannot be reached: OFFLINE (password login for everyone) or DENY (refuse to connect).
+api-failure = "OFFLINE"
+
+[routing]
+# RANDOM, LEAST_PLAYERS, ROUND_ROBIN or FIRST.
+strategy = "RANDOM"
+# Servers for licensed (online) and offline players. Empty lists fall back to Velocity's try list.
+online = []
+offline = []

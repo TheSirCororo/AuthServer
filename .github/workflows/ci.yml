@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    tags-ignore: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image: ${{ steps.version.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/master' }}
+
+      - name: Build and test
+        run: ./gradlew build --console=plain
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: "**/build/reports/tests/"
+
+      # Release version: 0.2.0-SNAPSHOT on master build 42 becomes 0.2.0-build.42.
+      - name: Version
+        id: version
+        run: |
+          base=$(sed -n 's/^version=//p' gradle.properties)
+          echo "version=${base%-SNAPSHOT}-build.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          # Image names must be lowercase.
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/authserver" >> "$GITHUB_OUTPUT"
+
+      - name: Collect release files
+        run: |
+          mkdir dist
+          cp server/build/libs/server-*-all.jar dist/authserver-${{ steps.version.outputs.version }}.jar
+          cp velocity/build/libs/velocity-*.jar dist/authserver-velocity-${{ steps.version.outputs.version }}.jar
+          cp examples/example-plugin/build/libs/example-plugin-*.jar dist/example-plugin-${{ steps.version.outputs.version }}.jar
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jars
+          path: dist/
+          retention-days: 14
+
+      # The image is built from the jar above; only master pushes it.
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.ref == 'refs/heads/master'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ github.ref == 'refs/heads/master' }}
+          tags: |
+            ${{ steps.version.outputs.image }}:${{ steps.version.outputs.version }}
+            ${{ steps.version.outputs.image }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: jars
+          path: dist
+
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          IMAGE: ${{ needs.build.outputs.image }}
+        run: |
+          gh release create "v$VERSION" dist/*.jar \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "AuthServer $VERSION" \
+            --generate-notes \
+            --notes "Docker image: \`$IMAGE:$VERSION\`"

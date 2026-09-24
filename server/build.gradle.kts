@@ -1,23 +1,55 @@
-apply(plugin = "application")
-
-dependencies {
-    val ktor_version: String by project
-    val logback_version: String by project
-
-    api(project(":api"))
-    implementation("io.ktor:ktor-client-cio:$ktor_version")
-    implementation("io.netty:netty-all:4.1.81.Final")
-    implementation("ch.qos.logback:logback-classic:$logback_version")
-    implementation("org.bouncycastle:bcpkix-jdk15on:1.70")
-    implementation("net.benwoodworth.knbt:knbt:0.11.2")
-    implementation("com.google.code.gson:gson:2.9.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.4.0")
-    implementation("net.kyori:adventure-api:4.11.0")
-    implementation("net.kyori:adventure-text-serializer-gson:4.11.0")
-    implementation("net.kyori:adventure-nbt:4.11.0")
-    implementation(kotlin("stdlib"))
+plugins {
+    id("authserver.kotlin-conventions")
+    application
+    alias(libs.plugins.shadow)
 }
 
-repositories {
-    mavenCentral()
+description = "The auth server application"
+
+application { mainClass = "ru.cororo.authserver.AuthServerMain" }
+
+dependencies {
+    implementation(project(":api"))
+    implementation(project(":protocol"))
+    implementation(project(":gamedata"))
+    implementation(project(":world"))
+    implementation(project(":storage"))
+    implementation(project(":bridge"))
+    implementation(libs.kaml)
+    implementation(platform(libs.netty.bom))
+    implementation(libs.netty.handler)
+    implementation(libs.netty.transport)
+    implementation(libs.adventure.text.serializer.gson)
+    implementation(libs.adventure.text.serializer.plain)
+    implementation(libs.gson)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.angus.mail)
+    runtimeOnly(libs.logback.classic)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(project(":probe"))
+    testImplementation(libs.sqlite.jdbc)
+    testImplementation(libs.junit.jupiter.params)
+    testImplementation(libs.greenmail.junit5)
+}
+
+tasks.withType<Jar>().configureEach {
+    manifest.attributes(
+        "Implementation-Version" to project.version,
+        // SQLite loads its native library; without this JDK 22+ prints a warning.
+        "Enable-Native-Access" to "ALL-UNNAMED",
+    )
+}
+
+tasks.shadowJar {
+    mergeServiceFiles()
+    filesMatching("META-INF/*.kotlin_module") { duplicatesStrategy = DuplicatesStrategy.INCLUDE }
+}
+
+// The example plugin's jar is loaded by ExamplePluginTest like a real plugin.
+val examplePlugin = configurations.create("examplePlugin") { isTransitive = false }
+dependencies { examplePlugin(project(":example-plugin")) }
+tasks.test {
+    val jar = examplePlugin.incoming.files
+    inputs.files(jar)
+    jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-DexamplePluginJar=${jar.singleFile.absolutePath}") })
 }

@@ -1,29 +1,18 @@
-apply(plugin = "org.jetbrains.dokka")
-
 plugins {
-    `java-library`
+    id("authserver.kotlin-conventions")
+    id("authserver.dokka")
 }
 
-tasks.shadowJar {
-    finalizedBy(tasks.javadoc, tasks.kotlinSourcesJar)
-}
+description = "Public API for auth server plugins"
+
+java { withSourcesJar() }
 
 dependencies {
-//        compileOnly("com.velocitypowered:velocity-api:3.0.0")
-    val ktor_version: String by project
-    val kotlin_version: String by project
-    val logback_version: String by project
-
-    compileOnlyApi("io.netty:netty-all:4.1.75.Final")
-    compileOnlyApi("io.ktor:ktor-client-cio:$ktor_version")
-    compileOnlyApi("ch.qos.logback:logback-classic:$logback_version")
-    compileOnlyApi("org.bouncycastle:bcpkix-jdk15on:1.70")
-    compileOnlyApi("net.benwoodworth.knbt:knbt:0.11.1")
-    compileOnlyApi("com.google.code.gson:gson:2.9.0")
-    compileOnlyApi("org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.2")
-    compileOnlyApi("net.kyori:adventure-api:4.10.1")
-    compileOnlyApi("net.kyori:adventure-text-serializer-gson:4.10.1")
-    compileOnlyApi(kotlin("stdlib"))
-    compileOnlyApi("net.kyori:adventure-nbt:4.10.1")
-    testImplementation("org.jetbrains.kotlin:kotlin-test:$kotlin_version")
+    api(project(":protocol"))
+    api(project(":bridge"))
+    api(libs.kotlinx.coroutines.core)
+    api(libs.slf4j.api)
+    api(platform(libs.adventure.bom))
+    api(libs.adventure.api)
+    api(libs.adventure.text.minimessage)
 }
