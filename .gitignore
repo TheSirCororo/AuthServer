@@ -50,3 +50,23 @@ gradle-app.setting
 .classpath
 
 # End of https://www.toptal.com/developers/gitignore/api/kotlin,gradle
+
+# Kotlin compiler state and runtime logs
+.kotlin/
+logs/
+
+# Local Minecraft client files: credentials and session caches must never be committed
+/MinecraftClient.*
+/SessionCache.ini
+/ProfileKeyCache.ini
+/lang/
+
+# Server runtime output when running from the repository root
+/run/
+/data/
+/plugins/
+/messages/
+/config.yml
+
+# Python
+__pycache__/

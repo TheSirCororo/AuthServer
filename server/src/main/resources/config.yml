@@ -1,0 +1,113 @@
+# AuthServer configuration. Durations are in seconds unless stated otherwise.
+
+network:
+  host: 0.0.0.0
+  port: 25565
+  # Packets of at least this many bytes are compressed. -1 disables compression.
+  compression-threshold: 256
+  read-timeout-seconds: 30
+
+proxy:
+  # NONE     - players connect directly; licensed players are authenticated here.
+  # VELOCITY - behind Velocity with player-info-forwarding-mode = "modern" (1.13+ clients).
+  # LEGACY   - behind BungeeCord or Velocity "legacy"/"bungeeguard" forwarding (all clients).
+  forwarding: NONE
+  # Velocity forwarding secret / BungeeGuard token. Also signs messages to the proxy plugin.
+  # Must match the proxy and the Velocity plugin configuration.
+  secret: ""
+  # LEGACY forwarding without a secret trusts anyone who can reach this port. Only enable this
+  # when the server is unreachable except through the proxy.
+  allow-unprotected-legacy-forwarding: false
+
+authentication:
+  # false disables licensed (Mojang) login completely: every player registers and logs in with a password,
+  # /premium is unavailable and the Velocity plugin forces offline mode for everyone.
+  licensed-login: true
+  # How names without an account authenticate:
+  # OFFLINE - everybody registers with a password.
+  # AUTO    - names that belong to a licensed Mojang account must log in through Mojang (premium name protection).
+  # ONLINE  - only licensed players may join.
+  # Behind a proxy this decision is made by the Velocity plugin through the HTTP API below.
+  premium-policy: AUTO
+  login-timeout-seconds: 60
+  max-login-attempts: 5
+  min-password-length: 6
+  max-password-length: 64
+  username-pattern: "[A-Za-z0-9_]{3,16}"
+  # Accounts that may be registered from one IP address. 0 disables the limit.
+  max-accounts-per-ip: 3
+  # Players who reconnect from the same IP within this many minutes skip the password. 0 disables it.
+  session-minutes: 0
+  unsafe-passwords: ["123456", "password", "qwerty", "12345678", "111111", "123123"]
+  # Standalone only: encrypt offline 1.20.5+ connections so passwords never travel in clear text.
+  encrypt-offline-connections: true
+  session-server: "https://sessionserver.mojang.com"
+  profile-api: "https://api.minecraftservices.com/minecraft/profile/lookup/name/"
+  # Argon2id parameters and the number of threads that may hash passwords at the same time.
+  hashing:
+    memory-kib: 19456
+    iterations: 2
+    parallelism: 1
+    threads: 2
+  # New offline players pick password or licensed login in a chest menu, when licensed login is enabled and the
+  # premium policy is not ONLINE.
+  login-menu: true
+  # Hotbar item that prints login instructions on right click (and reopens the menu). Empty disables it.
+  help-item: "minecraft:compass"
+  show-titles: true
+  show-boss-bar: true
+  reminder-seconds: 10
+
+database:
+  # SQLITE, H2 or POSTGRESQL.
+  type: SQLITE
+  # File for SQLite and H2.
+  file: data/auth.db
+  # PostgreSQL connection.
+  host: localhost
+  port: 5432
+  database: authserver
+  user: authserver
+  password: ""
+  pool-size: 4
+  table-prefix: authserver_
+
+world:
+  # A Sponge schematic (.schem), MCEdit schematic (.schematic), structure file (.nbt) or an Anvil world
+  # directory. Leave empty for a single block to stand on.
+  map: ""
+  # Where the schematic's minimum corner is placed (ignored for Anvil worlds).
+  placement: { x: 0, y: 64, z: 0 }
+  spawn: { x: 0.5, y: 65.0, z: 0.5, yaw: 0.0, pitch: 0.0 }
+  # ADVENTURE, SURVIVAL, SPECTATOR or CREATIVE. Blocks never change, whatever the mode.
+  game-mode: ADVENTURE
+  view-distance: 4
+  time-of-day: 6000
+  # Falling below this height teleports the player back to spawn.
+  void-y: -64
+  # Maximum distance from spawn in blocks. 0 disables the limit.
+  max-distance: 0
+
+status:
+  # MiniMessage format.
+  motd: "<gradient:#5e4fa2:#f79459>AuthServer</gradient> <gray>- log in to play"
+  max-players: 1000
+  # Path to a 64x64 PNG server icon, or empty.
+  favicon: ""
+
+messages:
+  # Player-facing texts, one file per language (en.yml, ru.yml, ...). The client language picks the file.
+  directory: messages
+  default-language: en
+
+api:
+  # HTTP API for the Velocity plugin. Keep it reachable only from the proxy.
+  enabled: false
+  host: 127.0.0.1
+  port: 8765
+
+transfer:
+  # Standalone only: send authenticated 1.20.5+ players to this server with a transfer packet.
+  # The target must set accepts-transfers=true. Leave empty to keep players here.
+  host: ""
+  port: 25565

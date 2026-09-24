@@ -1,0 +1,80 @@
+# MiniMessage format: https://docs.advntr.dev/minimessage/format.html
+# Placeholders are listed next to the messages that use them.
+
+prompt-register: "<gray>Register with <yellow>/register <password> <password>"
+prompt-login: "<gray>Log in with <yellow>/login <password>"
+title-register: "<gold>Welcome!"
+subtitle-register: "<gray>/register <password> <password>"
+title-login: "<gold>Welcome back!"
+subtitle-login: "<gray>/login <password>"
+title-success: "<green>Logged in"
+subtitle-success: ""
+# <seconds>
+boss-bar-timer: "<gray>Time left: <yellow><seconds></yellow> s"
+
+success-register: "<green>You are registered. Remember your password!"
+success-login: "<green>You are logged in."
+success-session: "<green>Welcome back! Your session was resumed."
+success-premium: "<green>Licensed account verified."
+routing: "<gray>Taking you to the server..."
+authenticated-limbo: "<green>You are logged in. <gray>You can close the game now."
+
+# <attempts>
+wrong-password: "<red>Wrong password. <gray>Attempts left: <yellow><attempts>"
+already-registered: "<red>This name is already registered. <gray>Use <yellow>/login <password>"
+not-registered: "<red>This name is not registered. <gray>Use <yellow>/register <password> <password>"
+password-mismatch: "<red>The passwords do not match."
+# <min>
+password-too-short: "<red>The password must be at least <min> characters long."
+# <max>
+password-too-long: "<red>The password must be at most <max> characters long."
+password-unsafe: "<red>This password is too easy to guess. Choose another one."
+password-same-as-name: "<red>The password must not be your name."
+ip-limit: "<red>Too many accounts were registered from your address."
+registration-denied: "<red>Registration was refused."
+
+wrong-password-change: "<red>The current password is wrong."
+change-password-success: "<green>Your password was changed."
+unregister-success: "<green>Your account was deleted."
+# <command>
+premium-confirm: "<yellow>Only do this if you own a licensed Minecraft account!</yellow> <gray>From now on you will log in through Mojang. Confirm with <yellow>/<command> confirm"
+premium-enabled: "<green>Licensed login enabled. Reconnect with your licensed account."
+premium-already: "<gray>This account already uses licensed login."
+
+# <usage>
+usage: "<red>Usage: <yellow><usage>"
+unknown-command: "<red>Unknown command."
+login-first: "<red>Log in first."
+chat-login-first: "<red>Log in before chatting."
+players-only: "<red>Only players can use this command."
+
+kick-timeout: "<red>You did not log in in time."
+kick-too-many-attempts: "<red>Too many wrong passwords."
+kick-invalid-name: "<red>This name is not allowed."
+# <name>
+kick-wrong-case: "<red>This name is registered as <yellow><name></yellow>. Log in with exactly that name."
+kick-premium-account: "<red>This name belongs to a licensed account. <gray>Log in with a licensed client."
+kick-licensed-disabled: "<red>Licensed login is disabled and this account has no password. <gray>Ask an administrator to set one."
+kick-premium-required: "<red>This server requires a licensed Minecraft account."
+kick-premium-mismatch: "<red>This name is bound to a different licensed account."
+kick-already-connected: "<red>You are already connected."
+# <versions>
+kick-unsupported-version: "<red>Unsupported version. <gray>Use Minecraft <versions>."
+kick-mojang-unavailable: "<red>Mojang's servers could not verify you. Try again later."
+kick-unregistered: "<red>Your account was deleted."
+kick-shutdown: "<gray>The server is restarting."
+kick-internal-error: "<red>Something went wrong. Try again."
+kick-proxy-only: "<red>Connect through the proxy."
+
+help-item-name: "<gold>How to log in"
+help-item-lore: "<gray>Right-click for instructions"
+help-register: "<gray>This name is new. Register with <yellow>/register <password> <password></yellow> - type the same password twice."
+help-login: "<gray>This name is registered. Log in with <yellow>/login <password></yellow>."
+menu-title: "How do you want to log in?"
+menu-offline-name: "<yellow>With a password"
+menu-offline-lore: "<gray>Register now with /register"
+menu-licensed-name: "<green>With a licensed account"
+menu-licensed-lore: "<gray>Only if you bought Minecraft"
+menu-confirm-name: "<green>Confirm: I own a licensed account"
+menu-confirm-lore: "<red>Cracked clients will not be able to use this name"
+kick-licensed-chosen: "<green>Done! <gray>Reconnect with your licensed Minecraft to log in automatically."
