@@ -20,7 +20,7 @@ import java.util.UUID;
  *
  * <pre>
  * byte    format version (1)
- * byte    type (1 authenticated, 2 failed)
+ * byte    type (1 authenticated, 2 failed, 3 licensed login)
  * long    timestamp
  * long[2] player UUID
  * utf     username
@@ -38,6 +38,7 @@ public final class BridgeCodec {
     private static final int FORMAT = 1;
     private static final int TYPE_AUTHENTICATED = 1;
     private static final int TYPE_FAILED = 2;
+    private static final int TYPE_LICENSED_LOGIN = 3;
     private static final int MAC_LENGTH = 32;
 
     private final SecretKeySpec key;
@@ -53,7 +54,11 @@ public final class BridgeCodec {
         var bytes = new ByteArrayOutputStream();
         try (var output = new DataOutputStream(bytes)) {
             output.writeByte(FORMAT);
-            output.writeByte(message instanceof BridgeMessage.Authenticated ? TYPE_AUTHENTICATED : TYPE_FAILED);
+            output.writeByte(switch (message) {
+                case BridgeMessage.Authenticated ignored -> TYPE_AUTHENTICATED;
+                case BridgeMessage.Failed ignored -> TYPE_FAILED;
+                case BridgeMessage.LicensedLogin ignored -> TYPE_LICENSED_LOGIN;
+            });
             output.writeLong(message.timestamp());
             output.writeLong(message.playerId().getMostSignificantBits());
             output.writeLong(message.playerId().getLeastSignificantBits());
@@ -69,6 +74,7 @@ public final class BridgeCodec {
                     output.writeByte(failed.reason().ordinal());
                     output.writeUTF(failed.detail());
                 }
+                case BridgeMessage.LicensedLogin licensed -> output.writeUTF(licensed.detail());
             }
         } catch (IOException exception) {
             throw new UncheckedIOException(exception);
@@ -104,6 +110,7 @@ public final class BridgeCodec {
                         input.readBoolean() ? Optional.of(input.readUTF()) : Optional.empty());
                 case TYPE_FAILED -> new BridgeMessage.Failed(playerId, username, timestamp,
                         enumValue(FailureReason.values(), input.readUnsignedByte()), input.readUTF());
+                case TYPE_LICENSED_LOGIN -> new BridgeMessage.LicensedLogin(playerId, username, timestamp, input.readUTF());
                 default -> throw new InvalidMessageException("Unknown message type " + type);
             };
         } catch (IOException exception) {

@@ -1,5 +1,9 @@
 package ru.cororo.authserver.server.http
 
+import java.util.Locale
+import ru.cororo.authserver.server.auth.security.SecurityActor
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
+import net.kyori.adventure.text.Component
 import com.google.gson.Gson
 import com.google.gson.JsonParseException
 import com.sun.net.httpserver.HttpExchange
@@ -18,7 +22,9 @@ import java.util.concurrent.Executors
  * HTTP API for the proxy plugin, authenticated by the shared secret header:
  * - `GET  /api/v1/players/{name}` - how the name authenticates ([PlayerStatus]);
  * - `POST /api/v1/players/{name}/password` - change the password ([AccountApi.PasswordChange]);
- * - `POST /api/v1/players/{name}/logout` - end the session.
+ * - `POST /api/v1/players/{name}/logout` - end the session;
+ * - `POST /api/v1/players/{name}/command` - run `/email` or `/2fa` for a player on another server
+ *   ([AccountApi.AccountCommand]).
  *
  * Runs on the JDK's built-in HTTP server with virtual threads, so it needs no extra dependency.
  */
@@ -29,7 +35,12 @@ class ProxyApi(private val server: AuthServerImpl) {
     private var http: HttpServer? = null
 
     fun start(host: String, port: Int) {
-        http = HttpServer.create(InetSocketAddress(host, port), 0).apply {
+        val created = try {
+            HttpServer.create(InetSocketAddress(host, port), 0)
+        } catch (exception: java.net.BindException) {
+            throw IllegalStateException("Cannot listen on $host:$port for the HTTP API: ${exception.message}", exception)
+        }
+        http = created.apply {
             executor = Executors.newVirtualThreadPerTaskExecutor()
             createContext(PlayerStatus.PATH, ::handle)
             start()
@@ -47,6 +58,7 @@ class ProxyApi(private val server: AuthServerImpl) {
             when ("${exchange.requestMethod} ${path.removePrefix(name)}") {
                 "GET " -> exchange.respond(200, gson.toJson(runBlocking { server.premium.status(name) }))
                 "POST ${AccountApi.PASSWORD}" -> changePassword(exchange, name)
+                "POST ${AccountApi.COMMAND}" -> accountCommand(exchange, name)
                 "POST ${AccountApi.LOGOUT}" -> {
                     runBlocking { server.auth.logout(name) }
                     exchange.respond(204)
@@ -69,6 +81,31 @@ class ProxyApi(private val server: AuthServerImpl) {
         val result = runBlocking { server.auth.changePassword(name, request.oldPassword(), request.newPassword()) }
         val limits = server.auth.passwordLimits
         exchange.respond(200, gson.toJson(AccountApi.PasswordChangeResponse(result, limits.first, limits.last)))
+    }
+
+    /** The proxy vouches that the player is logged in; the answers go back as JSON components. */
+    private fun accountCommand(exchange: HttpExchange, name: String) {
+        val request = try {
+            gson.fromJson(exchange.requestBody.bufferedReader().readText(), AccountApi.AccountCommand::class.java)
+        } catch (_: JsonParseException) {
+            null
+        }
+        if (request?.command() == null || request.arguments() == null || request.command() !in AccountApi.COMMANDS) return exchange.respond(400)
+        val replies = mutableListOf<String>()
+        val actor = object : SecurityActor {
+            override val username = name
+            override val locale: Locale = Locale.forLanguageTag(request.locale()?.replace('_', '-') ?: "en")
+            override fun reply(message: Component) {
+                replies += GsonComponentSerializer.gson().serialize(message)
+            }
+        }
+        runBlocking {
+            when (request.command()) {
+                "email" -> server.security.emailCommand(actor, request.arguments())
+                "2fa" -> server.security.twoFactorCommand(actor, request.arguments())
+            }
+        }
+        exchange.respond(200, gson.toJson(AccountApi.AccountCommandResponse(replies)))
     }
 
     private fun HttpExchange.respond(status: Int, body: String = "") {

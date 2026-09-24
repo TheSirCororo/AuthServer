@@ -2,12 +2,20 @@ package ru.cororo.authserver.velocity.internal;
 
 import com.velocitypowered.api.event.EventTask;
 import com.velocitypowered.api.event.Subscribe;
+import com.velocitypowered.api.event.command.CommandExecuteEvent;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.PluginMessageEvent;
+import com.velocitypowered.api.event.connection.PostLoginEvent;
 import com.velocitypowered.api.event.connection.PreLoginEvent;
+import com.velocitypowered.api.event.permission.PermissionsSetupEvent;
 import com.velocitypowered.api.event.player.KickedFromServerEvent;
 import com.velocitypowered.api.event.player.PlayerChooseInitialServerEvent;
 import com.velocitypowered.api.event.player.ServerPreConnectEvent;
+import com.velocitypowered.api.event.proxy.ListenerBoundEvent;
+import com.velocitypowered.api.network.ProtocolVersion;
+import com.velocitypowered.api.permission.PermissionFunction;
+import com.velocitypowered.api.permission.PermissionProvider;
+import com.velocitypowered.api.permission.Tristate;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.ServerConnection;
@@ -29,12 +37,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Keeps unauthenticated players on the auth server and routes them once it reports a successful login.
  * Security invariants: only signed messages from the auth server's backend connection authenticate a player,
- * unauthenticated players cannot connect anywhere else, and a kick from the auth server never falls back to
- * another server.
+ * unauthenticated players cannot connect anywhere else, have no proxy permissions and cannot run proxy commands
+ * (their commands go to the auth server), and a kick from the auth server never falls back to another server.
+ * Until the password is checked, an offline player is only a name - anyone can connect with it.
  */
 public final class AuthListener implements AuthServerApi {
     public static final MinecraftChannelIdentifier CHANNEL = MinecraftChannelIdentifier.from(BridgeCodec.CHANNEL);
@@ -45,6 +55,11 @@ public final class AuthListener implements AuthServerApi {
     private final BridgeCodec bridge;
     private final AuthServerClient client;
     private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
+    private final AtomicBoolean gatesInstalled = new AtomicBoolean();
+    private Object plugin;
+
+    /** A node no permission plugin grants on purpose; see {@link #onPostLogin}. */
+    private static final String GATE_CHECK_PERMISSION = "authserver.internal.unauthenticated-check";
 
     public AuthListener(ProxyServer proxy, Logger logger, PluginConfig config) {
         this.proxy = proxy;
@@ -56,6 +71,7 @@ public final class AuthListener implements AuthServerApi {
 
     /** Registers the listener and the proxy-wide account commands. */
     public void register(Object plugin) {
+        this.plugin = plugin;
         proxy.getEventManager().register(plugin, this);
         var commands = new AccountCommands(proxy, logger, this, client);
         commands.register(plugin);
@@ -101,6 +117,55 @@ public final class AuthListener implements AuthServerApi {
                 () -> logger.error("Auth server '{}' is not registered in velocity.toml", config.authServer()));
     }
 
+    /**
+     * Installs the permission and command gates once the proxy is up, i.e. after every plugin registered its own
+     * listeners: handlers of equal priority run in registration order, so with the lowest priority these run last and
+     * see the final result, whichever permission plugin is installed.
+     */
+    @Subscribe
+    public void onListenerBound(ListenerBoundEvent event) {
+        if (!gatesInstalled.compareAndSet(false, true)) return;
+        proxy.getEventManager().register(plugin, PermissionsSetupEvent.class, Short.MIN_VALUE, this::gatePermissions);
+        proxy.getEventManager().register(plugin, CommandExecuteEvent.class, Short.MIN_VALUE, this::gateCommand);
+    }
+
+    /**
+     * Wraps whatever permission provider was set up (LuckPerms or any other plugin) so that its permissions apply only
+     * after the player authenticated; before that every check is denied.
+     */
+    private void gatePermissions(PermissionsSetupEvent event) {
+        if (!(event.getSubject() instanceof Player)) return;
+        PermissionProvider provider = event.getProvider();
+        event.setProvider(subject -> {
+            PermissionFunction granted = provider.createFunction(subject);
+            if (!(subject instanceof Player player)) return granted;
+            return permission -> isAuthenticated(player) ? granted.getPermissionValue(permission) : Tristate.FALSE;
+        });
+    }
+
+    /**
+     * Commands of unauthenticated players are not run by the proxy at all, whatever permissions a command checks;
+     * they are forwarded to the auth server, which handles /login and /register.
+     */
+    private void gateCommand(CommandExecuteEvent event) {
+        if (event.getCommandSource() instanceof Player player && !isAuthenticated(player)) {
+            event.setResult(CommandExecuteEvent.CommandResult.forwardToServer());
+        }
+    }
+
+    /**
+     * Fails closed if the permission gate is not in effect (a plugin replaced the provider after it): nobody is
+     * authenticated yet at this point, so every permission must be denied.
+     */
+    @Subscribe
+    public void onPostLogin(PostLoginEvent event) {
+        Player player = event.getPlayer();
+        if (isAuthenticated(player) || player.getPermissionValue(GATE_CHECK_PERMISSION) == Tristate.FALSE) return;
+        logger.error("Another plugin replaced the permission provider after AuthServer, so {} would keep their "
+                + "permissions before logging in. Refusing players until that plugin is fixed or removed.", player.getUsername());
+        player.disconnect(Component.text("Authentication is unavailable, try again later"));
+    }
+
     /** Unauthenticated players may only connect to the auth server. */
     @Subscribe
     public void onServerPreConnect(ServerPreConnectEvent event) {
@@ -142,6 +207,23 @@ public final class AuthListener implements AuthServerApi {
             }
             case BridgeMessage.Failed failed ->
                     proxy.getEventManager().fireAndForget(new AuthServerFailEvent(player, failed.reason(), failed.detail()));
+            case BridgeMessage.LicensedLogin licensed -> reconnectForLicensedLogin(player, licensed.detail());
+        }
+    }
+
+    /**
+     * Online mode is decided when a connection starts, so a player who chose a licensed login has to connect again:
+     * 1.20.5+ clients are transferred back to the address they used (velocity.toml needs accepts-transfers = true),
+     * others are asked to reconnect.
+     */
+    private void reconnectForLicensedLogin(Player player, String message) {
+        var address = player.getVirtualHost();
+        if (config.licensedTransfer() && address.isPresent()
+                && player.getProtocolVersion().noLessThan(ProtocolVersion.MINECRAFT_1_20_5)) {
+            logger.info("Transferring {} to {} for a licensed login", player.getUsername(), address.get());
+            player.transferToHost(address.get());
+        } else {
+            player.disconnect(Component.text(message));
         }
     }
 

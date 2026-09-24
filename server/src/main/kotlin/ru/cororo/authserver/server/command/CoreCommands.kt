@@ -39,8 +39,25 @@ class CoreCommands(private val server: AuthServerImpl) {
         }
         // Behind a proxy the plugin learns about licensed accounts through the HTTP API, so /premium needs it.
         if (server.config.authentication.licensedLogin && (!server.proxied || server.config.api.enabled)) {
-            player("premium", emptyList(), "[confirm]") { player, args ->
+            // Before login it only offers new players the licensed login; accounts must log in to switch.
+            player("premium", emptyList(), "[confirm]", beforeLogin = true) { player, args ->
                 auth.enablePremium(player, args.firstOrNull() == "confirm", "premium")
+            }
+        }
+        // Authenticator apps show codes as "123 456"; players type them that way.
+        player("code", emptyList(), "<code...>", beforeLogin = true) { player, args ->
+            auth.submitCode(player, args.joinToString("").ifEmpty { null })
+        }
+        // Authenticated players manage their account security; elsewhere on the proxy the plugin offers the same.
+        player("2fa", listOf("twofactor"), "[totp|email|confirm|off] [code...]") { player, args ->
+            server.security.twoFactorCommand(player, args)
+        }
+        if (server.config.email.enabled) {
+            player("email", listOf("mail"), "[set|confirm|remove] [address|code|password] [password]") { player, args ->
+                server.security.emailCommand(player, args)
+            }
+            player("recover", listOf("recovery", "restore"), "[code] [new password] [new password]", beforeLogin = true) { player, args ->
+                auth.recover(player, args)
             }
         }
         // Exiting runs the shutdown hook, which stops the server cleanly.
@@ -55,8 +72,8 @@ class CoreCommands(private val server: AuthServerImpl) {
         console("plugins", "", "Lists plugins") { source, _ ->
             source.info(server.plugins.plugins.joinToString { "${it.description.name} ${it.description.version}" }.ifEmpty { "No plugins" })
         }
-        console("auth", "<info|register|password|unregister|premium> <name> [value]", "Manages accounts") { source, args ->
-            val name = args.getOrNull(1) ?: return@console source.info("Usage: auth <info|register|password|unregister|premium> <name> [value]")
+        console("auth", AUTH_USAGE, "Manages accounts") { source, args ->
+            val name = args.getOrNull(1) ?: return@console source.info("Usage: auth $AUTH_USAGE")
             when (args[0]) {
                 "info" -> auth.account(name).thenAccept { source.info(it?.toString() ?: "No account named $name") }
                 "register" -> args.getOrNull(2)?.let { report(source, auth.register(name, it)) } ?: source.info("Usage: auth register <name> <password>")
@@ -67,13 +84,22 @@ class CoreCommands(private val server: AuthServerImpl) {
                     "off" -> report(source, auth.setPremium(name, false))
                     else -> source.info("Usage: auth premium <name> <on|off>")
                 }
+                // For players who lost their authenticator or mailbox.
+                "2fa" -> if (args.getOrNull(2) == "off") {
+                    server.scope.launch { source.info(if (server.security.disableTwoFactor(name)) "Two-factor authentication of $name is off" else "No account named $name") }
+                } else source.info("Usage: auth 2fa <name> off")
+                "email" -> args.getOrNull(2)?.let { value ->
+                    server.scope.launch {
+                        val done = server.security.setEmail(name, value.takeUnless { it == "off" })
+                        source.info(if (done) "Email of $name updated" else "No account named $name, or not an email address")
+                    }
+                } ?: source.info("Usage: auth email <name> <address|off>")
                 else -> source.info("Unknown action ${args[0]}")
             }
         }
         console("import", IMPORT_USAGE, "Imports accounts from another auth plugin") { source, args -> import(source, args) }
         console("help", "", "Lists console commands") { source, _ ->
-            source.info("stop, list, kick <player> [reason], plugins, auth <info|register|password|unregister|premium> <name> [value], " +
-                "import $IMPORT_USAGE")
+            source.info("stop, list, kick <player> [reason], plugins, auth $AUTH_USAGE, import $IMPORT_USAGE")
         }
     }
 
@@ -123,6 +149,7 @@ class CoreCommands(private val server: AuthServerImpl) {
     }
 
     private companion object {
+        const val AUTH_USAGE = "<info|register|password|unregister|premium|2fa|email> <name> [value]"
         const val IMPORT_USAGE = "<authme|limboauth|bungeeauth|simplelogin|authsystem|xlogin|auto> <jdbc-url|file> " +
             "[user=] [password=] [table=] [name-column=] [password-column=] [overwrite] [dry-run] [plaintext]"
     }

@@ -39,7 +39,10 @@ class NetworkServer(private val server: AuthServerImpl) {
                         .addLast(Connection.HANDLER, connection)
                 }
             })
-            .bind(host, port).syncUninterruptibly().channel()
+            .bind(host, port).awaitUninterruptibly().let { future ->
+                future.cause()?.let { throw IllegalStateException("Cannot listen on $host:$port: ${it.message}", it) }
+                future.channel()
+            }
     }
 
     val port: Int get() = (channel?.localAddress() as? java.net.InetSocketAddress)?.port ?: -1

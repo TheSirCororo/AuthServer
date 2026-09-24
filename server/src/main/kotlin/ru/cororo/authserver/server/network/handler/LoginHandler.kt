@@ -6,6 +6,7 @@ import kotlinx.coroutines.withTimeout
 import org.slf4j.LoggerFactory
 import ru.cororo.authserver.api.event.PreLoginEvent
 import ru.cororo.authserver.bridge.AuthMode
+import ru.cororo.authserver.bridge.PlayerStatus
 import ru.cororo.authserver.protocol.Packet
 import ru.cororo.authserver.protocol.ProtocolState
 import ru.cororo.authserver.protocol.ProtocolVersion
@@ -21,6 +22,7 @@ import ru.cororo.authserver.server.AuthServerImpl
 import ru.cororo.authserver.server.auth.GameProfile
 import ru.cororo.authserver.server.auth.offlineUuid
 import ru.cororo.authserver.server.config.ForwardingMode
+import ru.cororo.authserver.server.config.PremiumPolicy
 import ru.cororo.authserver.server.network.Connection
 import ru.cororo.authserver.server.network.ForwardedPlayer
 import ru.cororo.authserver.server.network.PacketHandler
@@ -50,6 +52,8 @@ class LoginHandler(
     private var step = Step.START
     private lateinit var username: String
     private var mode = AuthMode.OFFLINE
+    /** Whether the name has an account, as seen when the mode was decided. */
+    private var registered = false
     private val verifyToken = ByteArray(4).also(random::nextBytes)
     private val forwardingMessageId = random.nextInt(Int.MAX_VALUE)
     private var player: LimboPlayer? = null
@@ -107,12 +111,13 @@ class LoginHandler(
     private fun decideMode() {
         step = Step.WAITING
         server.scope.launch(Dispatchers.IO) {
-            val decided = runCatching { server.premium.mode(username) }.getOrElse {
+            val status = runCatching { server.premium.status(username) }.getOrElse {
                 logger.warn("Could not decide the login mode of {}", username, it)
-                AuthMode.OFFLINE
+                PlayerStatus(false, false, null, false)
             }
             connection.execute {
-                mode = decided
+                registered = status.registered
+                mode = if (status.onlineMode) AuthMode.ONLINE else AuthMode.OFFLINE
                 preLogin(fixedMode = false) {
                     val encrypt = mode == AuthMode.ONLINE ||
                         (server.config.authentication.encryptOfflineConnections && connection.version >= ProtocolVersion.MINECRAFT_1_20_5)
@@ -147,7 +152,7 @@ class LoginHandler(
             val profile = runCatching { withTimeout(10_000) { server.mojang.hasJoined(username, hash) } }
             connection.execute {
                 profile.fold(
-                    onSuccess = { verified -> if (verified == null) kick("kick-premium-required") else finish(verified) },
+                    onSuccess = { verified -> if (verified == null) kick(verificationFailedKey()) else finish(verified) },
                     onFailure = {
                         logger.warn("Mojang session check failed for {}: {}", username, it.toString())
                         kick("kick-mojang-unavailable")
@@ -155,6 +160,13 @@ class LoginHandler(
                 )
             }
         }
+    }
+
+    /** Mojang did not confirm the session: a licensed account's name, a licensed choice that failed, or no license. */
+    private fun verificationFailedKey() = when {
+        registered -> "kick-premium-account"
+        server.config.authentication.premiumPolicy == PremiumPolicy.MANUAL -> "kick-licensed-failed"
+        else -> "kick-premium-required"
     }
 
     // ------------------------------------------------------------------------------------------------ completion

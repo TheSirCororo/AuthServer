@@ -16,7 +16,8 @@ fun interface CommandExecutor {
 /**
  * A command. Players see it in completion (1.13+) when they are allowed to use it.
  *
- * @property usage argument syntax shown in completion, e.g. `<password> <password>`
+ * @property usage argument syntax shown in completion, e.g. `<password> <password>`; a last argument written
+ *   `<name...>` takes the rest of the line, spaces included, so clients accept it
  * @property availableBeforeLogin whether unauthenticated players may run it (login and register commands)
  * @property playersOnly console use is refused
  * @property consoleOnly players cannot run it at all (administration commands)

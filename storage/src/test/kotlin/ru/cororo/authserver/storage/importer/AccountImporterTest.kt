@@ -1,5 +1,7 @@
 package ru.cororo.authserver.storage.importer
 
+import kotlin.test.assertNull
+import ru.cororo.authserver.storage.TwoFactorMethod
 import com.password4j.Argon2Function
 import com.password4j.BcryptFunction
 import com.password4j.Password
@@ -69,12 +71,12 @@ class AccountImporterTest {
             .joinToString("") { "%02X".format(it) }
         val file = source("authme.db",
             "CREATE TABLE authme (id INTEGER PRIMARY KEY, username VARCHAR(255), realname VARCHAR(255), password VARCHAR(255), " +
-                "ip VARCHAR(40), lastlogin BIGINT, regdate BIGINT, regip VARCHAR(40), email VARCHAR(255))",
-            "INSERT INTO authme (username, realname, password, ip, lastlogin, regdate, regip) VALUES " +
-                "('steve', 'Steve', '$sha', '10.0.0.2', 1700000001000, 1600000000000, '10.0.0.1'), " +
-                "('alex', 'Alex', '$bcrypt', NULL, 0, 1600000000000, NULL), " +
-                "('bob', 'Bob', '$argon2i', NULL, 0, 1600000000000, NULL), " +
-                "('carl', 'Carl', '$pbkdf2', NULL, 0, 1600000000000, NULL)",
+                "ip VARCHAR(40), lastlogin BIGINT, regdate BIGINT, regip VARCHAR(40), email VARCHAR(255), totp VARCHAR(32))",
+            "INSERT INTO authme (username, realname, password, ip, lastlogin, regdate, regip, email, totp) VALUES " +
+                "('steve', 'Steve', '$sha', '10.0.0.2', 1700000001000, 1600000000000, '10.0.0.1', 'Steve@Example.COM', NULL), " +
+                "('alex', 'Alex', '$bcrypt', NULL, 0, 1600000000000, NULL, 'your@email.com', ''), " +
+                "('bob', 'Bob', '$argon2i', NULL, 0, 1600000000000, NULL, NULL, 'JBSWY3DPEHPK3PXP'), " +
+                "('carl', 'Carl', '$pbkdf2', NULL, 0, 1600000000000, NULL, 'not an address', NULL)",
         )
         val report = importer.run(ImportOptions(ImportSource.AUTHME, file))
         assertEquals(4, report.imported, report.toString())
@@ -87,6 +89,13 @@ class AccountImporterTest {
         assertEquals(Instant.ofEpochMilli(1600000000000), steve.registeredAt)
         assertEquals("10.0.0.1", steve.registrationIp)
         assertEquals("10.0.0.2", steve.lastLoginIp)
+        assertEquals("Steve@example.com", steve.email, "The domain is case-insensitive")
+        assertNull(database.accounts.find("alex")!!.email, "AuthMe's placeholder address is not an address")
+        assertNull(database.accounts.find("carl")!!.email)
+        val bob = database.accounts.find("bob")!!
+        assertEquals(TwoFactorMethod.TOTP, bob.twoFactor)
+        assertEquals("JBSWY3DPEHPK3PXP", bob.totpSecret)
+        assertEquals(TwoFactorMethod.NONE, steve.twoFactor)
     }
 
     @Test
@@ -96,13 +105,14 @@ class AccountImporterTest {
         val file = source("limboauth.db",
             "CREATE TABLE AUTH (NICKNAME VARCHAR, LOWERCASENICKNAME VARCHAR PRIMARY KEY, HASH VARCHAR, IP VARCHAR, TOTPTOKEN VARCHAR, " +
                 "REGDATE BIGINT, UUID VARCHAR, PREMIUMUUID VARCHAR, LOGINIP VARCHAR, LOGINDATE BIGINT, ISSUEDTIME BIGINT)",
-            "INSERT INTO AUTH VALUES ('Dan', 'dan', '$bcrypt', '1.1.1.1', '', 1600000000000, '', '', '1.1.1.1', 1700000000000, 0), " +
+            "INSERT INTO AUTH VALUES ('Dan', 'dan', '$bcrypt', '1.1.1.1', 'gezdgnbvgy3tqojq', 1600000000000, '', '', '1.1.1.1', 1700000000000, 0), " +
                 "('Notch', 'notch', '', '2.2.2.2', '', 1600000000000, '', '$premium', '2.2.2.2', 1700000000000, 0)",
         )
         val report = importer.run(ImportOptions(ImportSource.LIMBOAUTH, file))
         assertEquals(2, report.imported)
         assertEquals(1, report.premium)
         assertLogsIn("Dan", "dan-pass")
+        assertEquals("GEZDGNBVGY3TQOJQ", database.accounts.find("Dan")!!.totpSecret)
         val notch = database.accounts.find("Notch")!!
         assertTrue(notch.premium)
         assertEquals(premium, notch.premiumUuid)

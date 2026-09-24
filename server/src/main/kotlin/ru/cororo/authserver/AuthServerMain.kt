@@ -20,5 +20,12 @@ fun main(args: Array<String>) {
         exitProcess(1)
     }
     Runtime.getRuntime().addShutdownHook(Thread(server::stop, "shutdown"))
-    server.start()
+    try {
+        server.start()
+    } catch (exception: Exception) {
+        // Netty and the database pool run non-daemon threads: without exiting, a server that could not bind its port
+        // would linger as a process that does nothing.
+        logger.error("Could not start: {}", exception.message, exception)
+        exitProcess(1)
+    }
 }

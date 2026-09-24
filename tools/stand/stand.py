@@ -15,10 +15,13 @@ Everything lives in run/stand/ and survives restarts: configs are written only w
 jars are replaced on every start. The forwarding secret is generated once.
 """
 import argparse
+import ctypes
 import os
+import re
 import secrets
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -45,6 +48,48 @@ def newest(directory: Path, pattern: str) -> Path:
     return max(jars, key=lambda jar: jar.stat().st_mtime)
 
 
+def port_holder(port: int) -> str:
+    """Who listens on a port, as far as `ss` can tell (other users' processes are not shown)."""
+    try:
+        output = subprocess.run(["ss", "-Hltnp", f"sport = :{port}"], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    holders = {f"{name} (pid {pid})" for name, pid in re.findall(r'\("([^"]+)",pid=(\d+)', output)}
+    return ", ".join(sorted(holders))
+
+
+def check_ports(ports: dict):
+    """Fails before anything starts if a port is taken, e.g. by a server left over from an earlier run."""
+    busy = []
+    for name, port in ports.items():
+        with socket.socket() as probe:
+            try:
+                probe.bind(("127.0.0.1", port))
+            except OSError:
+                holder = port_holder(port)
+                busy.append(f"  {port} ({name}) is in use" + (f" by {holder}" if holder else ""))
+    if busy:
+        raise SystemExit("Cannot start the stand, ports are taken:\n" + "\n".join(busy) +
+                         "\nStop those processes (kill <pid>) or pick other ports with --port/--auth-port/--paper-port/--api-port.")
+
+
+def _load_prctl():
+    try:
+        return ctypes.CDLL(None).prctl
+    except (OSError, AttributeError):
+        return None
+
+
+# Looked up here: the child runs die_with_parent between fork and exec, where it should do as little as possible.
+_PRCTL = _load_prctl() if sys.platform == "linux" else None
+_PR_SET_PDEATHSIG = 1
+
+
+def die_with_parent():
+    """Linux: the child gets SIGTERM when this script dies, however it dies, so no server outlives the stand."""
+    _PRCTL(_PR_SET_PDEATHSIG, signal.SIGTERM)
+
+
 class Process:
     """A server process whose output is printed with a colored prefix."""
 
@@ -52,7 +97,8 @@ class Process:
         self.name, self.stop_command = name, stop_command
         # Own process group: Ctrl+C reaches only this script, which then stops the servers gracefully.
         self.process = subprocess.Popen(command, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                        stderr=subprocess.STDOUT, text=True, start_new_session=True)
+                                        stderr=subprocess.STDOUT, text=True, start_new_session=True,
+                                        preexec_fn=die_with_parent if _PRCTL else None)
         threading.Thread(target=self._pump, daemon=True).start()
 
     def _pump(self):
@@ -72,6 +118,10 @@ class Process:
             self.send(self.stop_command)
             self.process.wait(timeout)
         except (subprocess.TimeoutExpired, BrokenPipeError, OSError):
+            self.kill()
+
+    def kill(self):
+        if self.process.poll() is None:
             self.process.kill()
 
 
@@ -126,11 +176,14 @@ try = ["auth"]
 [forced-hosts]
 
 [advanced]
+# Players who pick the licensed login in the auth server's menu are transferred back (1.20.5+ clients).
+accepts-transfers = true
 
 [query]
 """)
     write_once(proxy_dir / "plugins/authserver/config.toml",
                f'auth-server = "auth"\napi-url = "http://{host}:{args.api_port}"\nsecret = "{secret}"\n'
+               'licensed-transfer = true\n'
                '[routing]\nstrategy = "FIRST"\nonline = ["lobby"]\noffline = ["lobby"]\n')
     for old in (proxy_dir / "plugins").glob("velocity-*.jar"):
         old.unlink()
@@ -146,6 +199,7 @@ try = ["auth"]
 def up(args):
     directory = Path(args.dir).resolve()
     java = Path(args.java)
+    check_ports({"velocity": args.port, "auth": args.auth_port, "paper": args.paper_port, "auth API": args.api_port})
     if not args.no_build:
         build(java.resolve().parents[1])
     jars = prepare(args, directory)
@@ -159,16 +213,25 @@ def up(args):
 
     stopping = threading.Event()
 
-    def shutdown(*_):
+    def shutdown():
         if stopping.is_set():
             return
         stopping.set()
-        print("Stopping the stand...")
+        print("Stopping the stand... (Ctrl+C again to kill it)")
         for name in ("velocity", "paper", "auth"):
             processes[name].stop()
 
-    signal.signal(signal.SIGINT, lambda *_: threading.Thread(target=shutdown).start())
-    signal.signal(signal.SIGTERM, lambda *_: threading.Thread(target=shutdown).start())
+    def on_signal(*_):
+        # The first signal stops the servers gracefully in the background; a second one does not wait for them.
+        if stopping.is_set():
+            print("Killing the stand")
+            for process in processes.values():
+                process.kill()
+        else:
+            threading.Thread(target=shutdown, daemon=True).start()
+
+    signal.signal(signal.SIGINT, on_signal)
+    signal.signal(signal.SIGTERM, on_signal)
 
     def console():
         for line in sys.stdin:
@@ -185,6 +248,7 @@ def up(args):
         shutdown()
 
     threading.Thread(target=console, daemon=True).start()
+    failed = False
     while any(process.process.poll() is None for process in processes.values()):
         try:
             next(iter(processes.values())).process.wait(0.5)
@@ -193,7 +257,10 @@ def up(args):
         if not stopping.is_set() and any(process.process.poll() is not None for process in processes.values()):
             crashed = [name for name, process in processes.items() if process.process.poll() is not None]
             print(f"{', '.join(crashed)} exited; stopping the rest")
-            shutdown()
+            failed = True
+            threading.Thread(target=shutdown, daemon=True).start()
+    if failed:
+        raise SystemExit(1)
 
 
 def main():

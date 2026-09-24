@@ -11,5 +11,7 @@ public enum AuthMethod {
     /** Licensed player verified by Mojang. */
     PREMIUM,
     /** A plugin authenticated the player. */
-    FORCED
+    FORCED,
+    /** Set a new password with a code sent to the account's email. */
+    RECOVERY
 }

@@ -55,7 +55,15 @@ coroutine per player on I/O threads; `AuthManager` holds the authentication rule
 state lives in `LimboPlayer`, item encoding per version in `protocol/.../buffer/Items.kt` (menu and data component
 IDs come from the generated `registry-ids.txt`). `AuthServerImpl` wires everything and owns the lifecycle.
 `storage/.../importer/AccountImporter` imports other plugins' databases; legacy hash formats are in
-`LegacyHashes`.
+`LegacyHashes`. Login mode: `PremiumResolver.status` is asked once per connection (standalone login or the proxy's
+pre-login via `ProxyApi`); under the default `MANUAL` policy a licensed choice is an in-memory, one-shot
+`LicensedLoginRequests` entry, and the premium account is created only in `AuthManager.onJoin` after Mojang verified
+the player. Behind Velocity the choice travels as a `BridgeMessage.LicensedLogin` and the plugin transfers or
+disconnects the player. Two-factor authentication and email live in `auth/security`: `AccountSecurity` implements
+`/email` and `/2fa` for a `SecurityActor` (a `LimboPlayer`, or a player on another server through `ProxyApi`'s
+`/command` route) and holds the in-memory `EmailCodes`; `AuthManager.passFirstFactor` turns a password, Mojang or
+recovery login into a `/code` step. Mail goes through the `MailSender` interface (`SmtpMailSender`; tests use
+`FakeMail` from `TestHarness`).
 
 **Proxy.** Forwarding (`network/Forwarding.kt`) sets the real address and UUID; an offline-UUID means an offline
 account. After authentication the server sends a `bridge` message signed with `proxy.secret` on

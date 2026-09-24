@@ -23,12 +23,15 @@ authentication:
   # false disables licensed (Mojang) login completely: every player registers and logs in with a password,
   # /premium is unavailable and the Velocity plugin forces offline mode for everyone.
   licensed-login: true
-  # How names without an account authenticate:
+  # How names without an account authenticate. Existing accounts always keep their kind: licensed accounts never
+  # log in with a password and password accounts never log in through Mojang.
+  # MANUAL  - new players choose in the limbo: register with a password, or reconnect and log in through Mojang
+  #           (1.20.5+ clients are transferred back automatically). A failed licensed login returns to the choice.
   # OFFLINE - everybody registers with a password.
   # AUTO    - names that belong to a licensed Mojang account must log in through Mojang (premium name protection).
   # ONLINE  - only licensed players may join.
   # Behind a proxy this decision is made by the Velocity plugin through the HTTP API below.
-  premium-policy: AUTO
+  premium-policy: MANUAL
   login-timeout-seconds: 60
   max-login-attempts: 5
   min-password-length: 6
@@ -49,8 +52,8 @@ authentication:
     iterations: 2
     parallelism: 1
     threads: 2
-  # New offline players pick password or licensed login in a chest menu, when licensed login is enabled and the
-  # premium policy is not ONLINE.
+  # MANUAL policy: open the password/licensed choice menu when a new player joins. The help item and /premium offer
+  # the choice either way.
   login-menu: true
   # Hotbar item that prints login instructions on right click (and reopens the menu). Empty disables it.
   help-item: "minecraft:compass"
@@ -111,3 +114,31 @@ transfer:
   # The target must set accepts-transfers=true. Leave empty to keep players here.
   host: ""
   port: 25565
+
+email:
+  # SMTP account for confirmation codes: /email (link an address), /recover (forgotten password) and email
+  # two-factor authentication. Without it /email and /recover are hidden; authenticator apps still work.
+  enabled: false
+  host: smtp.example.com
+  # 587 with STARTTLS, 465 with SSL, 25 with NONE (only for a relay on a trusted network).
+  port: 587
+  security: STARTTLS
+  username: ""
+  password: ""
+  # Sender address; most providers require the SMTP account's own address.
+  from: ""
+  from-name: "Minecraft server"
+  code-minutes: 10
+  # Minimum time between two codes for one account, so the commands cannot flood a mailbox.
+  resend-seconds: 60
+  max-code-attempts: 5
+
+two-factor:
+  # Lets players protect their accounts with /2fa: codes from an authenticator app (TOTP) or by email.
+  # Turning it off only stops new setups; accounts that already use it keep needing their codes.
+  # Administrators can reset a player with the console command "auth 2fa <name> off".
+  enabled: true
+  # Name authenticator apps show next to the code.
+  issuer: "Minecraft"
+  # Accepted clock drift of the player's phone, in 30-second steps either way.
+  totp-window: 1

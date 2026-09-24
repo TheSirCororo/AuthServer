@@ -3,6 +3,7 @@ package ru.cororo.authserver.velocity.internal;
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import org.slf4j.Logger;
 import ru.cororo.authserver.bridge.AccountApi.PasswordChangeResult;
 
@@ -12,8 +13,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Proxy-wide {@code /changepassword} and {@code /logout}. They are hidden on the auth server itself, where Velocity
- * then forwards the command to the auth server's own implementation.
+ * Proxy-wide {@code /changepassword}, {@code /logout}, {@code /2fa} and {@code /email}. They are hidden on the auth
+ * server itself, where Velocity then forwards the command to the auth server's own implementation.
  */
 final class AccountCommands {
     private static final long CONFIRM_MILLIS = 30_000;
@@ -44,6 +45,8 @@ final class AccountCommands {
         var commands = proxy.getCommandManager();
         commands.register(commands.metaBuilder("changepassword").aliases("changepass", "cp").plugin(plugin).build(), new ChangePassword());
         commands.register(commands.metaBuilder("logout").plugin(plugin).build(), new Logout());
+        commands.register(commands.metaBuilder("2fa").aliases("twofactor").plugin(plugin).build(), new Remote("2fa"));
+        commands.register(commands.metaBuilder("email").aliases("mail").plugin(plugin).build(), new Remote("email"));
     }
 
     void forget(UUID player) {
@@ -139,6 +142,42 @@ final class AccountCommands {
                 say(player, "logout-success");
                 sessions.logout(player);
             });
+        }
+    }
+
+    /** Runs the auth server's own implementation through the HTTP API and shows its answers. */
+    private final class Remote implements SimpleCommand {
+        private final String command;
+
+        Remote(String command) {
+            this.command = command;
+        }
+
+        @Override
+        public boolean hasPermission(Invocation invocation) {
+            return available(invocation);
+        }
+
+        @Override
+        public void execute(Invocation invocation) {
+            Player player = (Player) invocation.source();
+            String locale = player.getEffectiveLocale() == null ? "en" : player.getEffectiveLocale().toLanguageTag();
+            client.accountCommand(player.getUsername(), command, List.of(invocation.arguments()), locale).whenComplete((response, error) -> {
+                if (error != null) {
+                    logger.warn("Could not run /{} for {}: {}", command, player.getUsername(), error.getMessage());
+                    say(player, "unavailable");
+                    return;
+                }
+                response.messages().forEach(json -> player.sendMessage(GsonComponentSerializer.gson().deserialize(json)));
+            });
+        }
+
+        @Override
+        public List<String> suggest(Invocation invocation) {
+            if (invocation.arguments().length > 1) return List.of();
+            List<String> options = command.equals("2fa") ? List.of("totp", "email", "confirm", "off") : List.of("set", "confirm", "remove");
+            String typed = invocation.arguments().length == 0 ? "" : invocation.arguments()[0];
+            return options.stream().filter(option -> option.startsWith(typed.toLowerCase())).toList();
         }
     }
 

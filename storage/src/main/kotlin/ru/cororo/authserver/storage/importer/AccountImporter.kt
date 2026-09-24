@@ -4,6 +4,8 @@ import org.slf4j.LoggerFactory
 import ru.cororo.authserver.storage.AccountExistsException
 import ru.cororo.authserver.storage.AccountRecord
 import ru.cororo.authserver.storage.AccountRepository
+import ru.cororo.authserver.storage.EmailAddresses
+import ru.cororo.authserver.storage.TwoFactorMethod
 import ru.cororo.authserver.storage.password.LegacyHashes
 import ru.cororo.authserver.storage.password.PasswordHasher
 import java.nio.file.Path
@@ -19,11 +21,12 @@ enum class ImportSource(internal val profile: ImportProfile?) {
     AUTHME(ImportProfile(
         tables = listOf("authme"), names = listOf("realname", "username"), passwords = listOf("password"),
         premiumUuids = listOf("premiumUUID"), registrationIps = listOf("regip"), registrationDates = listOf("regdate"),
-        lastIps = listOf("ip"), lastLogins = listOf("lastlogin"),
+        lastIps = listOf("ip"), lastLogins = listOf("lastlogin"), emails = listOf("email"), totpSecrets = listOf("totp"),
     )),
     LIMBOAUTH(ImportProfile(
         tables = listOf("AUTH"), names = listOf("NICKNAME"), passwords = listOf("HASH"), premiumUuids = listOf("PREMIUMUUID"),
         registrationIps = listOf("IP"), registrationDates = listOf("REGDATE"), lastIps = listOf("LOGINIP"), lastLogins = listOf("LOGINDATE"),
+        totpSecrets = listOf("TOTPTOKEN"),
     )),
     BUNGEEAUTH(ImportProfile(
         tables = listOf("BungeeAuth"), names = listOf("playername"), passwords = listOf("password"), hashTypes = listOf("pwtype"),
@@ -51,6 +54,8 @@ internal data class ImportProfile(
     val registrationDates: List<String> = emptyList(),
     val lastIps: List<String> = emptyList(),
     val lastLogins: List<String> = emptyList(),
+    val emails: List<String> = emptyList(),
+    val totpSecrets: List<String> = emptyList(),
 )
 
 /**
@@ -146,6 +151,7 @@ class AccountImporter(private val accounts: AccountRepository, private val hashe
     internal data class Mapping(
         val table: String, val name: String, val password: String, val hashType: String?, val premiumUuid: String?,
         val registrationIp: String?, val registrationDate: String?, val lastIp: String?, val lastLogin: String?,
+        val email: String?, val totpSecret: String?,
     )
 
     private fun resolve(connection: Connection, options: ImportOptions): Mapping {
@@ -168,6 +174,8 @@ class AccountImporter(private val accounts: AccountRepository, private val hashe
             registrationDate = column(null, profile.registrationDates),
             lastIp = column(null, profile.lastIps),
             lastLogin = column(null, profile.lastLogins),
+            email = column(null, profile.emails),
+            totpSecret = column(null, profile.totpSecrets),
         )
     }
 
@@ -204,6 +212,7 @@ class AccountImporter(private val accounts: AccountRepository, private val hashe
         val raw = rows.getString(mapping.password)?.trim()?.takeIf(String::isNotEmpty)
         val hash = raw?.let { normalise(it, mapping.hashType?.let(rows::getString), plainText) }
         if (hash == null && premiumUuid == null) return null
+        val totpSecret = mapping.totpSecret?.let(rows::getString)?.trim()?.uppercase()?.takeIf { it.matches(BASE32_SECRET) }
         return AccountRecord(
             username = username,
             passwordHash = hash,
@@ -213,6 +222,9 @@ class AccountImporter(private val accounts: AccountRepository, private val hashe
             registrationIp = mapping.registrationIp?.let(rows::getString)?.takeIf(String::isNotBlank),
             lastLoginAt = mapping.lastLogin?.let { instant(rows, it) },
             lastLoginIp = mapping.lastIp?.let(rows::getString)?.takeIf(String::isNotBlank),
+            email = mapping.email?.let(rows::getString)?.let(EmailAddresses::normalise),
+            twoFactor = if (totpSecret != null) TwoFactorMethod.TOTP else TwoFactorMethod.NONE,
+            totpSecret = totpSecret,
         )
     }
 
@@ -269,6 +281,8 @@ class AccountImporter(private val accounts: AccountRepository, private val hashe
         private val USERNAME = Regex("[A-Za-z0-9_]{1,16}")
         private val HEX = Regex("[0-9a-fA-F]+")
         private val PBKDF2_SHA1 = Regex("\\d+:[0-9a-fA-F]+:[0-9a-fA-F]+")
+        /** AuthMe and LimboAuth keep authenticator secrets as Base32 (at least 80 bits). */
+        private val BASE32_SECRET = Regex("[A-Z2-7]{16,64}")
         private val KNOWN_PREFIXES = listOf("\$2a\$", "\$2b\$", "\$2y\$", "\$argon2", "\$SHA\$", "\$SHA512\$", "pbkdf2_sha256\$", "pbkdf2\$")
         private val PREFERRED_TABLE_WORDS = listOf("auth", "user", "account", "player", "login")
         private val AUTO_PROFILE = ImportProfile(
@@ -280,6 +294,8 @@ class AccountImporter(private val accounts: AccountRepository, private val hashe
             registrationDates = listOf("regdate", "registered_at", "register_date", "created_at"),
             lastIps = listOf("lastip", "last_ip", "loginip", "login_ip"),
             lastLogins = listOf("lastlogin", "last_login", "logindate", "last_login_at"),
+            emails = listOf("email", "mail", "e_mail"),
+            totpSecrets = listOf("totp", "totp_secret", "totptoken", "totp_token", "2fa_secret"),
         )
 
         /** Builds a JDBC URL for database files and makes MySQL URLs use the bundled MariaDB driver. */

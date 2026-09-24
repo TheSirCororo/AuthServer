@@ -22,6 +22,9 @@ import ru.cororo.authserver.protocol.packet.play.ContainerContentPacket
 import ru.cororo.authserver.protocol.packet.play.ContainerSlotPacket
 import ru.cororo.authserver.protocol.packet.play.OpenScreenPacket
 import ru.cororo.authserver.api.player.Player
+import ru.cororo.authserver.bridge.AuthMethod
+import ru.cororo.authserver.server.auth.security.SecurityActor
+import ru.cororo.authserver.storage.TwoFactorMethod
 import ru.cororo.authserver.api.player.Position
 import ru.cororo.authserver.bridge.AuthMode
 import ru.cororo.authserver.protocol.ProtocolVersion
@@ -55,12 +58,15 @@ class LimboPlayer(
     override val properties: List<ProfileProperty>,
     override val mode: AuthMode,
     spawn: Position,
-) : Player {
+) : Player, SecurityActor {
     /** Sequential executor for this player's logic: at most one task runs at a time. */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
 
     override val protocolVersion: ProtocolVersion get() = connection.version
     override val address: InetSocketAddress get() = connection.address
+
+    /** Where the player connected to, when known (standalone); see [Connection.virtualHost]. */
+    val virtualHost: InetSocketAddress? get() = connection.virtualHost
 
     @Volatile
     override var locale: Locale = Locale.ENGLISH
@@ -93,6 +99,16 @@ class LimboPlayer(
     /** Set once `/premium` asked for confirmation. */
     var premiumConfirmationPending = false
 
+    /** The first step of the login succeeded and a code is expected with `/code`. */
+    data class SecondFactor(val method: AuthMethod, val factor: TwoFactorMethod, val address: String?)
+
+    @Volatile
+    var secondFactor: SecondFactor? = null
+
+    /** What the reminders repeat: a message key and its placeholders. */
+    @Volatile
+    var prompt: Pair<String, Array<Pair<String, Any>>> = "prompt-register" to emptyArray()
+
     private val teleportIds = AtomicInteger()
 
     @Volatile
@@ -121,6 +137,8 @@ class LimboPlayer(
     override fun identity(): Identity = Identity.identity(uniqueId)
 
     override fun sendMessage(message: Component) = connection.send(SystemChatPacket(message))
+
+    override fun reply(message: Component) = sendMessage(message)
 
     override fun sendActionBar(message: Component) = connection.send(ActionBarPacket(message))
 

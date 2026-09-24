@@ -21,6 +21,10 @@ data class AccountInfo(
     val registeredAt: Instant,
     val lastLoginAt: Instant?,
     val lastLoginIp: String?,
+    /** Confirmed address for codes and password recovery. */
+    val email: String? = null,
+    /** Whether logins need a code from an authenticator app or email after the password. */
+    val twoFactor: Boolean = false,
 )
 
 /** Result of an account operation started by a plugin. */
@@ -46,6 +50,6 @@ interface AuthService {
     /** Marks an account as licensed so it logs in through Mojang, or back to a password account. */
     fun setPremium(username: String, premium: Boolean): CompletableFuture<AuthResult>
 
-    /** Authenticates a player without a password, e.g. after a plugin-provided check. */
+    /** Authenticates a player without a password or second factor, e.g. after a plugin-provided check. */
     fun forceLogin(player: Player, method: AuthMethod = AuthMethod.FORCED)
 }

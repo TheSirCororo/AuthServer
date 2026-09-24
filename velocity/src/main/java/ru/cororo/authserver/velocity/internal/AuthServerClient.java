@@ -11,6 +11,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /** Client of the auth server HTTP API (see {@link PlayerStatus} and {@link AccountApi}). */
@@ -33,6 +34,12 @@ final class AuthServerClient {
         var body = gson.toJson(new AccountApi.PasswordChange(oldPassword, newPassword));
         return send(request(username, AccountApi.PASSWORD).POST(HttpRequest.BodyPublishers.ofString(body)),
                 AccountApi.PasswordChangeResponse.class);
+    }
+
+    CompletableFuture<AccountApi.AccountCommandResponse> accountCommand(String username, String command, List<String> arguments, String locale) {
+        var body = gson.toJson(new AccountApi.AccountCommand(command, arguments, locale));
+        return send(request(username, AccountApi.COMMAND).POST(HttpRequest.BodyPublishers.ofString(body)),
+                AccountApi.AccountCommandResponse.class);
     }
 
     CompletableFuture<Void> logout(String username) {

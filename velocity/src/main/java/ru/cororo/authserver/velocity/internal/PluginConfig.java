@@ -17,6 +17,8 @@ import java.util.Objects;
  * @param apiUrl          base URL of the auth server HTTP API
  * @param secret          shared secret: auth server {@code proxy.secret}
  * @param premiumBypass   licensed players skip the auth server and go straight to the online group
+ * @param licensedTransfer transfer 1.20.5+ players who chose a licensed login back to the proxy instead of asking
+ *                        them to reconnect
  * @param apiFailure      what to do when the API cannot be reached
  * @param strategy        how a server is picked from a group
  * @param onlineServers   targets for licensed players
@@ -27,6 +29,7 @@ public record PluginConfig(
         String apiUrl,
         String secret,
         boolean premiumBypass,
+        boolean licensedTransfer,
         ApiFailure apiFailure,
         RoutingStrategy strategy,
         List<String> onlineServers,
@@ -62,6 +65,7 @@ public record PluginConfig(
                 toml.getString("api-url", "http://127.0.0.1:8765"),
                 toml.getString("secret", ""),
                 toml.getBoolean("premium-bypass", false),
+                toml.getBoolean("licensed-transfer", false),
                 ApiFailure.valueOf(toml.getString("api-failure", "OFFLINE").toUpperCase(Locale.ROOT)),
                 RoutingStrategy.valueOf(toml.getString("routing.strategy", "RANDOM").toUpperCase(Locale.ROOT)),
                 toml.getList("routing.online", List.of()),

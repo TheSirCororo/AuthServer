@@ -110,7 +110,9 @@ try = ["auth"]
         env = {**os.environ, "JAVA_HOME": str(Path(args.java).resolve().parents[1])}
         result = subprocess.run([str(probe), "record", args.protocol, "127.0.0.1", str(ports["proxy"]), str(work / "recording"),
                                  "30", "E2eSteve", ";".join([
+                                     "server", "wait 1",
                                      "register e2e-pass e2e-pass", "wait 4",
+                                     "2fa", "wait 1",
                                      "changepassword e2e-pass e2e-new-pass", "wait 1", "changepassword confirm", "wait 3",
                                      "logout", "wait 4", "login e2e-new-pass"])],
                                 capture_output=True, text=True, env=env)
@@ -119,8 +121,12 @@ try = ["auth"]
         auth_log = "".join(processes[0].log)
         chat = result.stdout
         checks = {
+            # /server is open to everyone on Velocity; before login the proxy must not run it.
+            "proxy commands are not run before login": "Unknown command" in chat.split("/register e2e-pass")[0]
+                and "currently connected" not in chat,
             "auth server authenticated the player": "E2eSteve authenticated (OFFLINE, REGISTER)" in auth_log,
             "proxy moved the player to the lobby": "lobby" in velocity_log and "has connected" in velocity_log,
+            "/2fa on the lobby is answered by the auth server": "Two-factor authentication is off" in chat,
             "/changepassword asked for confirmation": "Change your password?" in chat,
             "/changepassword changed the password": "Your password was changed." in chat,
             "/logout returned the player to the auth server": "You logged out" in chat and "Log in with /login" in chat,

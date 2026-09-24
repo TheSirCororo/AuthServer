@@ -5,6 +5,7 @@ import org.junit.jupiter.params.provider.EnumSource
 import ru.cororo.authserver.protocol.ProtocolVersion
 import ru.cororo.authserver.protocol.ProtocolVersion.*
 import ru.cororo.authserver.server.config.PremiumPolicy
+import ru.cororo.authserver.server.config.ServerConfig
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -77,7 +78,7 @@ class StandaloneAuthTest {
     @EnumSource(names = ["MINECRAFT_1_8", "MINECRAFT_1_20_3", "MINECRAFT_26_3"])
     fun `licensed names log in through mojang`(version: ProtocolVersion) {
         val uuid = UUID.randomUUID()
-        TestServer(FakeMojang(mapOf("Notch" to uuid))).use { test ->
+        TestServer(FakeMojang(mapOf("Notch" to uuid)), configure = ::autoPolicy).use { test ->
             test.client(version, "Notch").use { client ->
                 client.connect()
                 assertTrue(client.encrypted)
@@ -98,6 +99,8 @@ class StandaloneAuthTest {
             }
         }
     }
+
+    private fun autoPolicy(config: ServerConfig) = config.copy(authentication = config.authentication.copy(premiumPolicy = PremiumPolicy.AUTO))
 }
 
 internal fun waitUntil(timeoutMillis: Long = 5000, condition: () -> Boolean) {

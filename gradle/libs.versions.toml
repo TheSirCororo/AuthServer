@@ -15,6 +15,8 @@ sqlite = "3.53.4.0"
 h2 = "2.5.250"
 postgresql = "42.7.13"
 mariadb = "3.5.10"
+angus-mail = "2.0.5"
+greenmail = "2.1.14"
 velocity = "4.2.0"
 shadow = "9.6.1"
 dokka = "2.2.0"
@@ -55,6 +57,8 @@ sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 h2 = { module = "com.h2database:h2", version.ref = "h2" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 mariadb = { module = "org.mariadb.jdbc:mariadb-java-client", version.ref = "mariadb" }
+angus-mail = { module = "org.eclipse.angus:angus-mail", version.ref = "angus-mail" }
+greenmail-junit5 = { module = "com.icegreen:greenmail-junit5", version.ref = "greenmail" }
 
 ksp-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
 ksp-gradle-plugin = { module = "com.google.devtools.ksp:symbol-processing-gradle-plugin", version.ref = "ksp" }

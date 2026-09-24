@@ -9,7 +9,8 @@ import java.util.UUID
 
 internal class JdbcAccountRepository(private val database: Database, prefix: String) : AccountRepository {
     private val table = "${prefix}accounts"
-    private val columns = "id, username, password_hash, premium, premium_uuid, registered_at, registration_ip, last_login_at, last_login_ip"
+    private val columns = "id, username, password_hash, premium, premium_uuid, registered_at, registration_ip, last_login_at, " +
+        "last_login_ip, email, two_factor, totp_secret"
 
     override fun find(username: String): Account? =
         querySingle("SELECT $columns FROM $table WHERE username_lower = ?") { it.setString(1, username.lowercase()) }
@@ -22,7 +23,7 @@ internal class JdbcAccountRepository(private val database: Database, prefix: Str
             database.connection { connection ->
                 connection.prepareStatement(
                     "INSERT INTO $table (username, username_lower, password_hash, premium, premium_uuid, registered_at, " +
-                        "registration_ip, last_login_at, last_login_ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        "registration_ip, last_login_at, last_login_ip, email, two_factor, totp_secret) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 ).use { statement ->
                     statement.setString(1, record.username)
                     statement.setString(2, record.username.lowercase())
@@ -33,6 +34,9 @@ internal class JdbcAccountRepository(private val database: Database, prefix: Str
                     statement.setNullableString(7, record.registrationIp)
                     if (record.lastLoginAt == null) statement.setNull(8, Types.BIGINT) else statement.setLong(8, record.lastLoginAt.toEpochMilli())
                     statement.setNullableString(9, record.lastLoginIp)
+                    statement.setNullableString(10, record.email)
+                    statement.setString(11, record.twoFactor.name)
+                    statement.setNullableString(12, record.totpSecret)
                     statement.executeUpdate()
                 }
             }
@@ -65,6 +69,21 @@ internal class JdbcAccountRepository(private val database: Database, prefix: Str
             it.setNullableString(2, premiumUuid?.toString())
             it.setLong(3, id)
         }
+
+    override fun setEmail(id: Long, email: String?) =
+        update("UPDATE $table SET email = ? WHERE id = ?") {
+            it.setNullableString(1, email)
+            it.setLong(2, id)
+        }
+
+    override fun setTwoFactor(id: Long, method: TwoFactorMethod, totpSecret: String?) {
+        require((method == TwoFactorMethod.TOTP) == (totpSecret != null)) { "A TOTP secret goes with the TOTP method only" }
+        update("UPDATE $table SET two_factor = ?, totp_secret = ? WHERE id = ?") {
+            it.setString(1, method.name)
+            it.setNullableString(2, totpSecret)
+            it.setLong(3, id)
+        }
+    }
 
     override fun delete(id: Long) = update("DELETE FROM $table WHERE id = ?") { it.setLong(1, id) }
 
@@ -101,6 +120,9 @@ internal class JdbcAccountRepository(private val database: Database, prefix: Str
         registrationIp = getString("registration_ip"),
         lastLoginAt = getLong("last_login_at").takeUnless { wasNull() }?.let(Instant::ofEpochMilli),
         lastLoginIp = getString("last_login_ip"),
+        email = getString("email"),
+        twoFactor = getString("two_factor")?.let { runCatching { TwoFactorMethod.valueOf(it) }.getOrNull() } ?: TwoFactorMethod.NONE,
+        totpSecret = getString("totp_secret"),
     )
 
     private fun PreparedStatement.setNullableString(index: Int, value: String?) =

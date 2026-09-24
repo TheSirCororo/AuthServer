@@ -19,6 +19,8 @@ data class ServerConfig(
     val messages: MessagesConfig = MessagesConfig(),
     val api: ApiConfig = ApiConfig(),
     val transfer: TransferConfig = TransferConfig(),
+    val email: EmailConfig = EmailConfig(),
+    val twoFactor: TwoFactorConfig = TwoFactorConfig(),
 ) {
     fun validate() {
         require(network.port in 1..65535) { "network.port must be 1-65535" }
@@ -36,6 +38,15 @@ data class ServerConfig(
             "authentication.min-password-length must be between 1 and max-password-length"
         }
         require(runCatching { Regex(authentication.usernamePattern) }.isSuccess) { "authentication.username-pattern is not a valid regex" }
+        if (email.enabled) {
+            require(email.host.isNotBlank()) { "email.host is required when email is enabled" }
+            require(email.port in 1..65535) { "email.port must be 1-65535" }
+            require('@' in email.from) { "email.from must be an email address" }
+        }
+        require(email.codeMinutes >= 1 && email.resendSeconds >= 0 && email.maxCodeAttempts >= 1) {
+            "email.code-minutes and email.max-code-attempts must be positive"
+        }
+        require(twoFactor.totpWindow in 0..5) { "two-factor.totp-window must be 0-5" }
     }
 
     companion object {
@@ -87,6 +98,11 @@ data class ProxyConfig(
 
 /** How names without an account authenticate. */
 enum class PremiumPolicy {
+    /**
+     * New players join without Mojang and choose: register with a password, or reconnect to log in through Mojang.
+     * A failed licensed login brings them back to the choice.
+     */
+    MANUAL,
     /** Every new player registers with a password. */
     OFFLINE,
     /** Names owned by a licensed Mojang account must log in through Mojang; others register. */
@@ -99,7 +115,7 @@ enum class PremiumPolicy {
 data class AuthenticationConfig(
     /** `false` disables Mojang authentication entirely: every player registers and logs in with a password. */
     val licensedLogin: Boolean = true,
-    val premiumPolicy: PremiumPolicy = PremiumPolicy.AUTO,
+    val premiumPolicy: PremiumPolicy = PremiumPolicy.MANUAL,
     val loginTimeoutSeconds: Int = 60,
     val maxLoginAttempts: Int = 5,
     val minPasswordLength: Int = 6,
@@ -115,7 +131,7 @@ data class AuthenticationConfig(
     val sessionServer: String = "https://sessionserver.mojang.com",
     val profileApi: String = "https://api.minecraftservices.com/minecraft/profile/lookup/name/",
     val hashing: HashingConfig = HashingConfig(),
-    /** New offline players choose between a password and a licensed login in a menu, when both are possible. */
+    /** With the MANUAL policy, open the password/licensed choice menu on join (it is always on the help item). */
     val loginMenu: Boolean = true,
     /** Item in the first hotbar slot that explains how to log in on right click; empty for none. */
     val helpItem: String = "minecraft:compass",
@@ -177,6 +193,46 @@ data class MessagesConfig(
     /** Directory with <language>.yml files; missing bundled files are copied into it. */
     val directory: String = "messages",
     val defaultLanguage: String = "en",
+)
+
+/** How the SMTP connection is secured. */
+enum class MailSecurity {
+    /** Plain connection, e.g. to a relay on localhost. */
+    NONE,
+    /** Upgrade with STARTTLS (usually port 587); refuses to send without it. */
+    STARTTLS,
+    /** TLS from the start (usually port 465). */
+    SSL,
+}
+
+/** SMTP account for confirmation codes, email two-factor authentication and password recovery. */
+@Serializable
+data class EmailConfig(
+    val enabled: Boolean = false,
+    val host: String = "",
+    val port: Int = 587,
+    val security: MailSecurity = MailSecurity.STARTTLS,
+    val username: String = "",
+    val password: String = "",
+    /** Sender address; many providers require it to be the SMTP account itself. */
+    val from: String = "",
+    val fromName: String = "Minecraft server",
+    /** How long a code stays valid. */
+    val codeMinutes: Int = 10,
+    /** Minimum time between two codes for the same account. */
+    val resendSeconds: Int = 60,
+    /** Wrong codes before a code is thrown away. */
+    val maxCodeAttempts: Int = 5,
+)
+
+@Serializable
+data class TwoFactorConfig(
+    /** Lets players protect their accounts with /2fa. Existing settings keep working when turned off. */
+    val enabled: Boolean = true,
+    /** Name authenticator apps show next to the code. */
+    val issuer: String = "Minecraft",
+    /** Accepted clock drift in 30-second steps either way. */
+    val totpWindow: Int = 1,
 )
 
 @Serializable

@@ -1,5 +1,10 @@
 package ru.cororo.authserver.server.auth
 
+import ru.cororo.authserver.storage.TwoFactorMethod
+import ru.cororo.authserver.storage.EmailAddresses
+import ru.cororo.authserver.server.auth.security.CodePurpose
+import ru.cororo.authserver.server.auth.security.AccountSecurity
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -53,11 +58,14 @@ class AuthManager(
     private val bridge: BridgeCodec?,
     private val transfer: TransferConfig,
     private val loginInterface: LoginInterface,
+    private val licensedRequests: LicensedLoginRequests,
+    private val security: AccountSecurity,
+    /** Limits how many passwords are hashed at once (Argon2 needs a lot of memory). */
+    private val hashing: CoroutineDispatcher,
     private val commandsChanged: (LimboPlayer) -> Unit,
     private val scope: CoroutineScope,
 ) : AuthService {
     private val logger = LoggerFactory.getLogger(AuthManager::class.java)
-    private val hashing = Dispatchers.Default.limitedParallelism(config.hashing.threads.coerceAtLeast(1))
     private val usernamePattern = Regex(config.usernamePattern)
 
     fun isValidName(username: String) = usernamePattern.matches(username)
@@ -70,10 +78,16 @@ class AuthManager(
         if (account != null && account.username != player.username) {
             return fail(player, FailureReason.INVALID_NAME, "kick-wrong-case", "name" to account.username)
         }
+        var licensedFailed = false
         when (player.mode) {
             AuthMode.ONLINE -> when {
                 account == null -> {
-                    io { accounts.create(player.username, null, ip(player), premium = true, premiumUuid = player.uniqueId) }
+                    licensedRequests.clear(player.username)
+                    try {
+                        io { accounts.create(player.username, null, ip(player), premium = true, premiumUuid = player.uniqueId) }
+                    } catch (_: AccountExistsException) {
+                        return fail(player, FailureReason.PREMIUM_VERIFICATION_FAILED, "kick-premium-mismatch")
+                    }
                     return authenticate(player, AuthMethod.PREMIUM)
                 }
                 account.premium -> {
@@ -81,7 +95,7 @@ class AuthManager(
                         return fail(player, FailureReason.PREMIUM_VERIFICATION_FAILED, "kick-premium-mismatch")
                     }
                     if (account.premiumUuid == null) io { accounts.setPremium(account.id, true, player.uniqueId) }
-                    return authenticate(player, AuthMethod.PREMIUM)
+                    return passFirstFactor(player, AuthMethod.PREMIUM, account)
                 }
                 // A licensed player whose name was registered with a password must know that password.
             }
@@ -91,9 +105,36 @@ class AuthManager(
                 account?.premium == true && config.licensedLogin ->
                     return fail(player, FailureReason.PREMIUM_VERIFICATION_FAILED, "kick-premium-account")
                 account != null && canResume(player, account) -> return authenticate(player, AuthMethod.SESSION)
+                // Came back without Mojang after choosing a licensed login: that did not work, choose again.
+                account == null -> licensedFailed = licensedRequests.failed(player.username)
             }
         }
-        startPrompts(player, registered = account != null)
+        if (licensedFailed) player.say("licensed-login-failed")
+        loginInterface.onPrompt(player, registered = account != null)
+        startPrompts(player, if (account != null) "login" else "register")
+    }
+
+    /**
+     * The player chose a licensed login (`MANUAL` policy): the next connection with this name goes through Mojang.
+     * Clients from 1.20.5 are transferred back right away (by the proxy plugin behind Velocity); older ones reconnect.
+     */
+    suspend fun requestLicensedLogin(player: LimboPlayer) {
+        if (player.isAuthenticated || !player.canChooseLicensed || io { accounts.find(player.username) } != null) return
+        licensedRequests.request(player.username)
+        logger.info("{} chose a licensed login", player.username)
+        val message = messages.render(player.locale, "kick-licensed-chosen")
+        val handedOver = when {
+            bridge != null -> {
+                player.sendPluginMessage(BridgeCodec.CHANNEL, bridge.encode(BridgeMessage.LicensedLogin(
+                    player.uniqueId, player.username, System.currentTimeMillis(), PlainTextComponentSerializer.plainText().serialize(message),
+                )))
+                true
+            }
+            else -> player.virtualHost?.let { player.transfer(it.hostString, it.port) } ?: false
+        }
+        // After a transfer the client leaves by itself; the kick covers old clients and proxies that did not act.
+        if (handedOver) delay(RECONNECT_GRACE_MILLIS)
+        player.kick(message)
     }
 
     private fun canResume(player: LimboPlayer, account: Account): Boolean {
@@ -102,21 +143,25 @@ class AuthManager(
         return account.lastLoginIp == ip(player) && Duration.between(last, Instant.now()) < Duration.ofMinutes(config.sessionMinutes.toLong())
     }
 
-    private fun startPrompts(player: LimboPlayer, registered: Boolean) {
-        loginInterface.onPrompt(player, registered)
-        val prompt = if (registered) "prompt-login" else "prompt-register"
-        val kind = if (registered) "login" else "register"
+    /**
+     * Shows what to type ([step] names the `title-`/`subtitle-`/`prompt-` messages) and starts the reminders and the
+     * login timeout; a later step replaces the earlier one's jobs, so every step gets the full time.
+     */
+    private fun startPrompts(player: LimboPlayer, step: String, vararg placeholders: Pair<String, Any>) {
+        player.authJobs.forEach { it.cancel() }
+        player.authJobs.clear()
+        player.prompt = "prompt-$step" to arrayOf(*placeholders)
         if (config.showTitles) {
             player.showTitle(Title.title(
-                messages.render(player.locale, "title-$kind"), messages.render(player.locale, "subtitle-$kind"),
+                messages.render(player.locale, "title-$step"), messages.render(player.locale, "subtitle-$step", *placeholders),
                 Title.Times.times(Duration.ofMillis(250), Duration.ofSeconds(config.loginTimeoutSeconds.toLong()), Duration.ofMillis(250)),
             ))
         }
-        player.sendMessage(messages.render(player.locale, prompt))
+        remind(player)
         player.authJobs += player.launch {
             while (isActive) {
                 delay(config.reminderSeconds.coerceAtLeast(1) * 1000L)
-                player.sendMessage(messages.render(player.locale, prompt))
+                remind(player)
             }
         }
         val timeout = config.loginTimeoutSeconds
@@ -139,6 +184,93 @@ class AuthManager(
                 bar?.let(player::hideBossBar)
             }
         }
+    }
+
+    private fun remind(player: LimboPlayer) {
+        val (key, placeholders) = player.prompt
+        player.say(key, *placeholders)
+    }
+
+    // ------------------------------------------------------------------------------------------------ second factor
+
+    /**
+     * The password, Mojang or a recovery code proved the first factor. Accounts with two-factor authentication then
+     * need a code (`/code`); a resumed session does not, as it continues a login that had one.
+     */
+    private suspend fun passFirstFactor(player: LimboPlayer, method: AuthMethod, account: Account) {
+        when (account.twoFactor) {
+            TwoFactorMethod.NONE -> authenticate(player, method)
+            TwoFactorMethod.TOTP -> {
+                player.secondFactor = LimboPlayer.SecondFactor(method, TwoFactorMethod.TOTP, null)
+                loginInterface.onPrompt(player, registered = true)
+                startPrompts(player, "code-totp")
+            }
+            TwoFactorMethod.EMAIL -> {
+                // Without mail the code cannot arrive; an administrator can turn two-factor authentication off.
+                val address = account.email?.takeIf { security.emailEnabled }
+                    ?: return fail(player, FailureReason.OTHER, "kick-2fa-unavailable")
+                player.secondFactor = LimboPlayer.SecondFactor(method, TwoFactorMethod.EMAIL, address)
+                loginInterface.onPrompt(player, registered = true)
+                security.send(player, CodePurpose.LOGIN, address, "code-sent-login")
+                startPrompts(player, "code-email", "address" to EmailAddresses.mask(address))
+            }
+        }
+    }
+
+    /** `/code <code>`; for email codes a bare `/code` sends a new one. */
+    suspend fun submitCode(player: LimboPlayer, code: String?) {
+        val pending = player.secondFactor ?: return player.say(if (player.isAuthenticated) "code-not-needed" else player.prompt.first)
+            .also { logger.info("{} sent /code without a pending code", player.username) }
+        val accepted = when (pending.factor) {
+            TwoFactorMethod.TOTP -> {
+                val secret = io { accounts.find(player.username) }?.totpSecret ?: return
+                if (code == null) return remind(player).also { logger.info("{} sent /code without a code", player.username) }
+                if (security.blocked(player)) return
+                security.acceptTotp(player.username, secret, code).also { if (!it) security.failed(player, "code-wrong-totp") }
+            }
+            TwoFactorMethod.EMAIL -> {
+                val address = pending.address ?: return
+                if (code == null) return security.send(player, CodePurpose.LOGIN, address, "code-sent-login")
+                security.checkCode(player, CodePurpose.LOGIN, code) != null
+            }
+            TwoFactorMethod.NONE -> true
+        }
+        logger.info("{} entered a {} code: {}", player.username, pending.factor, if (accepted) "accepted" else "rejected")
+        if (!accepted) {
+            player.failedAttempts++
+            if (player.failedAttempts >= config.maxLoginAttempts) fail(player, FailureReason.WRONG_PASSWORD, "kick-too-many-attempts")
+            return
+        }
+        player.secondFactor = null
+        authenticate(player, pending.method)
+    }
+
+    // ------------------------------------------------------------------------------------------------ recovery
+
+    /** `/recover` mails a code; `/recover <code> <password> <password>` sets a new password and logs in. */
+    suspend fun recover(player: LimboPlayer, arguments: List<String>) {
+        if (player.isAuthenticated || player.secondFactor != null) return
+        if (!security.emailEnabled) return player.say("recover-unavailable")
+        val account = io { accounts.find(player.username) } ?: return player.say("not-registered")
+        if (account.passwordHash == null) return player.say("premium-already")
+        val address = account.email ?: return player.say("recover-no-email")
+        if (arguments.isEmpty()) return security.send(player, CodePurpose.RECOVER, address, "recover-code-sent")
+        if (arguments.size != 3) return player.say("recover-usage")
+        val (code, password, confirmation) = arguments
+        if (password != confirmation) return player.say("password-mismatch")
+        // Checked before the code, so a rejected password does not use the code up.
+        passwordIssue(player.username, password)?.let { return player.sendMessage(message(player, it)) }
+        if (security.checkCode(player, CodePurpose.RECOVER, code) == null) {
+            player.failedAttempts++
+            if (player.failedAttempts >= config.maxLoginAttempts) fail(player, FailureReason.WRONG_PASSWORD, "kick-too-many-attempts")
+            return
+        }
+        val hash = withContext(hashing) { hasher.hash(password) }
+        io { accounts.updatePassword(account.id, hash) }
+        logger.info("{} set a new password with an email code", player.username)
+        player.say("recover-success")
+        // The emailed code already proved the address, which is the second factor of email-protected accounts.
+        passFirstFactor(player, AuthMethod.RECOVERY, if (account.twoFactor == TwoFactorMethod.EMAIL) account.copy(twoFactor = TwoFactorMethod.NONE) else account)
     }
 
     // ------------------------------------------------------------------------------------------------ commands
@@ -164,6 +296,7 @@ class AuthManager(
 
     suspend fun login(player: LimboPlayer, password: String) {
         if (player.isAuthenticated) return
+        if (player.secondFactor != null) return remind(player)
         val account = io { accounts.find(player.username) } ?: return player.say("not-registered")
         val hash = account.passwordHash ?: return player.say("not-registered")
         val verification = withContext(hashing) { hasher.verify(password, hash) }
@@ -179,7 +312,7 @@ class AuthManager(
             val upgraded = withContext(hashing) { hasher.hash(password) }
             io { accounts.updatePassword(account.id, upgraded) }
         }
-        authenticate(player, AuthMethod.LOGIN)
+        passFirstFactor(player, AuthMethod.LOGIN, account)
     }
 
     suspend fun changePassword(player: LimboPlayer, oldPassword: String, newPassword: String) =
@@ -213,9 +346,21 @@ class AuthManager(
         player.kick(messages.render(player.locale, "kick-unregistered"))
     }
 
-    /** `/premium` then `/premium confirm`: the account logs in through Mojang from now on. */
+    /**
+     * `/premium` then `/premium confirm`: the account logs in through Mojang from now on. A new player under the
+     * `MANUAL` policy gets the licensed login of the menu instead.
+     */
     suspend fun enablePremium(player: LimboPlayer, confirmed: Boolean, commandName: String) {
-        val account = io { accounts.find(player.username) } ?: return player.say("not-registered")
+        val account = io { accounts.find(player.username) }
+        if (account == null) {
+            if (!player.canChooseLicensed) return player.say("not-registered")
+            if (!confirmed || !player.premiumConfirmationPending) {
+                player.premiumConfirmationPending = true
+                return player.say("premium-choose-confirm", "command" to commandName)
+            }
+            return requestLicensedLogin(player)
+        }
+        if (!player.isAuthenticated) return player.say("login-first")
         if (account.premium) return player.say("premium-already")
         if (!confirmed || !player.premiumConfirmationPending) {
             player.premiumConfirmationPending = true
@@ -243,6 +388,7 @@ class AuthManager(
         }
         player.say(when (method) {
             AuthMethod.REGISTER -> "success-register"
+            AuthMethod.RECOVERY -> "success-login"
             AuthMethod.SESSION -> "success-session"
             AuthMethod.PREMIUM -> "success-premium"
             else -> "success-login"
@@ -301,10 +447,18 @@ class AuthManager(
 
     private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }
 
+    private companion object {
+        /** Time the client (or the proxy plugin) gets to act on a transfer before the auth server kicks the player. */
+        const val RECONNECT_GRACE_MILLIS = 3000L
+    }
+
     // ------------------------------------------------------------------------------------------------ plugin API
 
     override fun account(username: String): CompletableFuture<AccountInfo?> = scope.future(Dispatchers.IO) {
-        accounts.find(username)?.let { AccountInfo(it.username, it.premium, it.premiumUuid, it.passwordHash != null, it.registeredAt, it.lastLoginAt, it.lastLoginIp) }
+        accounts.find(username)?.let {
+            AccountInfo(it.username, it.premium, it.premiumUuid, it.passwordHash != null, it.registeredAt, it.lastLoginAt, it.lastLoginIp,
+                it.email, it.twoFactor != TwoFactorMethod.NONE)
+        }
     }
 
     override fun register(username: String, password: String): CompletableFuture<AuthResult> = scope.future(Dispatchers.IO) {

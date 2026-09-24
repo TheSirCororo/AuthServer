@@ -1,5 +1,8 @@
 package ru.cororo.authserver.server
 
+import ru.cororo.authserver.server.mail.SmtpMailSender
+import ru.cororo.authserver.server.mail.MailSender
+import ru.cororo.authserver.server.auth.security.AccountSecurity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -18,6 +21,7 @@ import ru.cororo.authserver.bridge.BridgeCodec
 import ru.cororo.authserver.protocol.packet.play.CommandNode
 import ru.cororo.authserver.server.auth.AuthManager
 import ru.cororo.authserver.server.auth.HttpMojangApi
+import ru.cororo.authserver.server.auth.LicensedLoginRequests
 import ru.cororo.authserver.server.auth.LoginInterface
 import ru.cororo.authserver.server.auth.MojangApi
 import ru.cororo.authserver.server.auth.PremiumResolver
@@ -54,6 +58,7 @@ class AuthServerImpl(
     val config: ServerConfig,
     val directory: Path,
     val mojang: MojangApi = HttpMojangApi(config.authentication.sessionServer, config.authentication.profileApi),
+    mail: MailSender = SmtpMailSender(config.email),
 ) : AuthServer {
     private val logger = LoggerFactory.getLogger(AuthServerImpl::class.java)
 
@@ -72,8 +77,11 @@ class AuthServerImpl(
         DatabaseConfig(it.type, directory.resolve(it.file).toString(), it.host, it.port, it.database, it.user, it.password, it.poolSize, it.tablePrefix)
     })
     private val hasher = PasswordHasher(config.authentication.hashing.let { Argon2Settings(it.memoryKib, it.iterations, it.parallelism) })
+    private val hashing = Dispatchers.Default.limitedParallelism(config.authentication.hashing.threads.coerceAtLeast(1))
+    val security = AccountSecurity(config.email, config.twoFactor, database.accounts, hasher, hashing, messages, mail)
     val importer = AccountImporter(database.accounts, hasher)
-    val premium = PremiumResolver(config.authentication.licensedLogin, config.authentication.premiumPolicy, database.accounts, mojang)
+    private val licensedRequests = LicensedLoginRequests()
+    val premium = PremiumResolver(config.authentication.licensedLogin, config.authentication.premiumPolicy, database.accounts, mojang, licensedRequests)
 
     override val events = EventManagerImpl()
     override val scheduler = SchedulerImpl(scope)
@@ -84,8 +92,9 @@ class AuthServerImpl(
         commands.unregisterAll(plugin)
     }
     override val world = LimboWorldService(config.world, directory)
-    val loginInterface = LoginInterface(config.authentication, messages, database.accounts)
-    override val auth = AuthManager(
+    // The menu's licensed choice is handled by `auth`, which in turn drives the interface.
+    val loginInterface = LoginInterface(config.authentication, messages) { player -> auth.requestLicensedLogin(player) }
+    override val auth: AuthManager = AuthManager(
         config = config.authentication,
         accounts = database.accounts,
         hasher = hasher,
@@ -94,6 +103,9 @@ class AuthServerImpl(
         bridge = if (proxied && config.proxy.secret.isNotEmpty()) BridgeCodec(config.proxy.secret) else null,
         transfer = config.transfer,
         loginInterface = loginInterface,
+        licensedRequests = licensedRequests,
+        security = security,
+        hashing = hashing,
         commandsChanged = { it.refreshCommands() },
         scope = scope,
     )

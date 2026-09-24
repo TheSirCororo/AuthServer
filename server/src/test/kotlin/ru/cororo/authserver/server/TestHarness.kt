@@ -12,8 +12,10 @@ import ru.cororo.authserver.protocol.PacketDirection
 import ru.cororo.authserver.protocol.ProtocolState
 import ru.cororo.authserver.protocol.ProtocolVersion
 import ru.cororo.authserver.protocol.buffer.ItemStack
+import ru.cororo.authserver.protocol.packet.TransferPacket
 import ru.cororo.authserver.protocol.packet.*
 import ru.cororo.authserver.protocol.packet.play.*
+import ru.cororo.authserver.server.mail.MailSender
 import ru.cororo.authserver.server.auth.GameProfile
 import ru.cororo.authserver.server.auth.MojangApi
 import ru.cororo.authserver.server.config.AuthenticationConfig
@@ -40,10 +42,28 @@ class FakeMojang(private val licensed: Map<String, UUID> = emptyMap()) : MojangA
     override suspend fun accountExists(username: String): Boolean = licensed.keys.any { it.equals(username, ignoreCase = true) }
 }
 
+/** Collects emails instead of sending them. */
+class FakeMail : MailSender {
+    data class Mail(val to: String, val subject: String, val text: String)
+
+    val sent = java.util.concurrent.CopyOnWriteArrayList<Mail>()
+
+    override fun send(to: String, subject: String, text: String) {
+        sent += Mail(to, subject, text)
+    }
+
+    /** The six-digit code of the latest email to [to]. */
+    fun code(to: String): String {
+        val mail = checkNotNull(sent.lastOrNull { it.to == to }) { "No email to $to; sent: $sent" }
+        return checkNotNull(Regex("\\b\\d{6}\\b").find(mail.text)) { "No code in ${mail.text}" }.value
+    }
+}
+
 /** A real server on a free port with a throw-away SQLite database and fast hashing. */
 class TestServer(
     mojang: MojangApi = FakeMojang(),
     private val directory: Path = Files.createTempDirectory("authserver-test"),
+    val mail: FakeMail = FakeMail(),
     configure: (ServerConfig) -> ServerConfig = { it },
 ) : AutoCloseable {
     val port = ServerSocket(0).use { it.localPort }
@@ -52,7 +72,7 @@ class TestServer(
         database = DatabaseSection(file = "auth.db"),
         authentication = AuthenticationConfig(hashing = HashingConfig(memoryKib = 1024, iterations = 1), reminderSeconds = 60),
     ))
-    val server = AuthServerImpl(config, directory, mojang).also { it.start() }
+    val server = AuthServerImpl(config, directory, mojang, mail).also { it.start() }
 
     fun client(version: ProtocolVersion, username: String) = TestClient(port, version, username)
 
@@ -82,6 +102,8 @@ class TestClient(port: Int, val version: ProtocolVersion, val username: String) 
     /** Latest contents of every window the server sent. */
     val windows = HashMap<Int, MutableList<ItemStack?>>()
     var screen: OpenScreenPacket? = null
+        private set
+    var transfer: TransferPacket? = null
         private set
 
     /** Answers `Login Plugin Request`s, e.g. with Velocity forwarding data. */
@@ -206,6 +228,7 @@ class TestClient(port: Int, val version: ProtocolVersion, val username: String) 
                 is ContainerContentPacket -> windows[packet.windowId] = packet.items.toMutableList()
                 is ContainerSlotPacket -> windows[packet.windowId]?.let { if (packet.slot in it.indices) it[packet.slot] = packet.item }
                 is OpenScreenPacket -> screen = packet
+                is TransferPacket -> transfer = packet
                 is CloseContainerPacket -> if (screen?.windowId == packet.windowId) screen = null
                 is ClientboundKeepAlivePacket -> connection.send(ServerboundKeepAlivePacket(packet.id))
                 is PlayerPositionPacket -> if (version >= ProtocolVersion.MINECRAFT_1_9) {

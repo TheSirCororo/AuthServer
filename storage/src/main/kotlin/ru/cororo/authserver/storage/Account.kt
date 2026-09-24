@@ -10,6 +10,9 @@ import java.util.UUID
  * @property passwordHash encoded hash; `null` for premium-only accounts that never set a password
  * @property premium whether the account authenticates through Mojang instead of a password
  * @property premiumUuid Mojang UUID bound to the account once it logged in as premium
+ * @property email confirmed email address for codes and password recovery
+ * @property twoFactor second step after the password (or Mojang) login
+ * @property totpSecret Base32 secret of the authenticator app when [twoFactor] is [TwoFactorMethod.TOTP]
  */
 data class Account(
     val id: Long,
@@ -21,8 +24,20 @@ data class Account(
     val registrationIp: String?,
     val lastLoginAt: Instant?,
     val lastLoginIp: String?,
+    val email: String? = null,
+    val twoFactor: TwoFactorMethod = TwoFactorMethod.NONE,
+    val totpSecret: String? = null,
 ) {
     val usernameLower: String get() = username.lowercase()
+}
+
+/** Second authentication factor of an account. */
+enum class TwoFactorMethod {
+    NONE,
+    /** A code from an authenticator app (RFC 6238). */
+    TOTP,
+    /** A code sent to the account's email address. */
+    EMAIL,
 }
 
 /** A complete account record, e.g. from another plugin's database. */
@@ -35,6 +50,9 @@ data class AccountRecord(
     val registrationIp: String? = null,
     val lastLoginAt: Instant? = null,
     val lastLoginIp: String? = null,
+    val email: String? = null,
+    val twoFactor: TwoFactorMethod = TwoFactorMethod.NONE,
+    val totpSecret: String? = null,
 )
 
 class AccountExistsException(username: String) : RuntimeException("Account $username already exists")
@@ -60,6 +78,12 @@ interface AccountRepository {
     fun clearSession(id: Long)
 
     fun setPremium(id: Long, premium: Boolean, premiumUuid: UUID?)
+
+    /** Sets or (with `null`) removes the confirmed email address. */
+    fun setEmail(id: Long, email: String?)
+
+    /** [totpSecret] is required for [TwoFactorMethod.TOTP] and cleared otherwise. */
+    fun setTwoFactor(id: Long, method: TwoFactorMethod, totpSecret: String?)
 
     fun delete(id: Long)
 

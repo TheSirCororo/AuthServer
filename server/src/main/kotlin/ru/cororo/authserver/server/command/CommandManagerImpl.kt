@@ -69,10 +69,13 @@ class CommandManagerImpl(private val messages: (CommandSource, String, Array<out
         }
         .map { (name, registered) -> CommandNode.Literal(name, arguments(registered.command.usage), executable = true) }
 
-    private fun arguments(usage: String): List<CommandNode> {
+    /** Argument nodes for a usage string such as `<password> <password>` or `[action] [code...]`. */
+    internal fun arguments(usage: String): List<CommandNode> {
         val names = Regex("<([^>]+)>|\\[([^]]+)]").findAll(usage).map { it.groupValues[1].ifEmpty { it.groupValues[2] } }.toList()
         return names.foldRight(emptyList()) { name, children ->
-            listOf(CommandNode.StringArgument(name.replace(' ', '_'), StringArgumentMode.SINGLE_WORD, children, executable = true))
+            // Clients refuse to send what their command tree cannot parse, so `...` marks text with spaces.
+            val mode = if (name.endsWith("...") && children.isEmpty()) StringArgumentMode.GREEDY_PHRASE else StringArgumentMode.SINGLE_WORD
+            listOf(CommandNode.StringArgument(name.removeSuffix("...").replace(' ', '_'), mode, children, executable = true))
         }
     }
 }

@@ -1,7 +1,5 @@
 package ru.cororo.authserver.server.auth
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import ru.cororo.authserver.api.inventory.Item
 import ru.cororo.authserver.api.inventory.Menu
 import ru.cororo.authserver.api.inventory.MenuClickHandler
@@ -10,28 +8,27 @@ import ru.cororo.authserver.server.config.AuthenticationConfig
 import ru.cororo.authserver.server.config.Messages
 import ru.cororo.authserver.server.config.PremiumPolicy
 import ru.cororo.authserver.server.player.LimboPlayer
-import ru.cororo.authserver.storage.AccountExistsException
-import ru.cororo.authserver.storage.AccountRepository
 
 /**
- * Item-based help for unauthenticated players: a help item that explains how to log in, and - when both licensed and
- * offline logins are possible for a new name - a menu to choose one.
+ * Item-based help for unauthenticated players: a help item that explains how to log in, and - for new names under the
+ * `MANUAL` premium policy - a menu to choose between a password and a licensed login.
  */
 class LoginInterface(
     private val config: AuthenticationConfig,
     private val messages: Messages,
-    private val accounts: AccountRepository,
+    /** Runs when the player confirms the licensed login: remember the choice and make the player reconnect. */
+    private val licensedChosen: suspend (LimboPlayer) -> Unit,
 ) {
-    /** A new offline player on a server with both login kinds may still pick a licensed login. */
-    private fun canChooseLicensed(player: LimboPlayer, registered: Boolean) = config.loginMenu && config.licensedLogin &&
-        config.premiumPolicy != PremiumPolicy.ONLINE && player.mode == AuthMode.OFFLINE && !registered
+    /** A new offline player may still pick a licensed login when the server leaves the choice to players. */
+    private fun canChooseLicensed(player: LimboPlayer, registered: Boolean) = config.licensedLogin &&
+        config.premiumPolicy == PremiumPolicy.MANUAL && player.mode == AuthMode.OFFLINE && !registered
 
     /** Called when a player has to log in or register. */
     fun onPrompt(player: LimboPlayer, registered: Boolean) {
         player.registered = registered
         player.canChooseLicensed = canChooseLicensed(player, registered)
         if (config.helpItem.isNotBlank()) player.setHotbarItem(HELP_SLOT, helpItem(player))
-        if (player.canChooseLicensed) player.openMenu(loginMenu(player))
+        if (player.canChooseLicensed && config.loginMenu) player.openMenu(loginMenu(player))
     }
 
     /** Right click with the item in [slot]. */
@@ -46,6 +43,10 @@ class LoginInterface(
     }
 
     private fun instructions(player: LimboPlayer) {
+        if (player.secondFactor != null) {
+            val (key, placeholders) = player.prompt
+            return player.sendMessage(messages.render(player.locale, key, *placeholders))
+        }
         player.sendMessage(text(player, if (player.registered) "help-login" else "help-register"))
     }
 
@@ -60,22 +61,15 @@ class LoginInterface(
             })
         menu.set(LICENSED_SLOT, Item("minecraft:emerald", name = text(player, "menu-licensed-name"), lore = listOf(text(player, "menu-licensed-lore"))),
             MenuClickHandler {
-                // Choosing a licensed login cannot be undone by the player, so it takes a second click.
+                // The choice disconnects the player, so it takes a second click.
                 menu.set(CONFIRM_SLOT, Item("minecraft:lime_wool", name = text(player, "menu-confirm-name"), lore = listOf(text(player, "menu-confirm-lore"))),
-                    MenuClickHandler { player.launch { chooseLicensed(player) } })
+                    MenuClickHandler {
+                        menu.onClose = null
+                        player.launch { licensedChosen(player) }
+                    })
             })
         menu.onClose = { instructions(player) }
         return menu
-    }
-
-    /** Binds the name to a licensed account; the next connection is authenticated through Mojang. */
-    private suspend fun chooseLicensed(player: LimboPlayer) {
-        try {
-            withContext(Dispatchers.IO) { accounts.create(player.username, null, player.address.hostString, premium = true) }
-        } catch (_: AccountExistsException) {
-            // Registered meanwhile (another connection); the next login follows whatever that account is.
-        }
-        player.kick(text(player, "kick-licensed-chosen"))
     }
 
     private fun text(player: LimboPlayer, key: String) = messages.render(player.locale, key)

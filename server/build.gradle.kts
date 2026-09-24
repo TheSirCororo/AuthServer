@@ -23,11 +23,13 @@ dependencies {
     implementation(libs.adventure.text.serializer.plain)
     implementation(libs.gson)
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.angus.mail)
     runtimeOnly(libs.logback.classic)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(project(":probe"))
     testImplementation(libs.sqlite.jdbc)
     testImplementation(libs.junit.jupiter.params)
+    testImplementation(libs.greenmail.junit5)
 }
 
 tasks.withType<Jar>().configureEach {

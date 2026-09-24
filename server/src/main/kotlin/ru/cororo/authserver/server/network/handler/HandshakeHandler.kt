@@ -10,6 +10,7 @@ import ru.cororo.authserver.server.network.Connection
 import ru.cororo.authserver.server.network.LegacyForwarding
 import ru.cororo.authserver.server.network.PacketHandler
 import ru.cororo.authserver.server.network.forwardedAddress
+import java.net.InetSocketAddress
 import java.util.Locale
 
 class HandshakeHandler(private val server: AuthServerImpl, private val connection: Connection) : PacketHandler {
@@ -37,10 +38,18 @@ class HandshakeHandler(private val server: AuthServerImpl, private val connectio
             }
             connection.address = forwardedAddress(forwarded.player.address, connection.address.port)
         }
+        if (server.config.proxy.forwarding == ForwardingMode.NONE) connection.virtualHost = virtualHost(packet)
         connection.switchState(ProtocolState.LOGIN, LoginHandler(server, connection, forwarded?.player))
         if (version == null) {
             connection.disconnect(server.messages.render(Locale.ENGLISH, "kick-unsupported-version", "versions" to SUPPORTED_VERSIONS))
         }
+    }
+
+    /** Forge appends `\u0000FML...` markers and SRV lookups leave a trailing dot. */
+    private fun virtualHost(packet: HandshakePacket): InetSocketAddress? {
+        val host = packet.serverAddress.substringBefore('\u0000').removeSuffix(".")
+        if (host.isBlank() || packet.serverPort !in 1..65535) return null
+        return InetSocketAddress.createUnresolved(host, packet.serverPort)
     }
 
     companion object {

@@ -8,7 +8,7 @@ import java.util.UUID;
  * A message the auth server sends to the proxy through the player's connection on {@link BridgeCodec#CHANNEL}.
  * Messages are signed, so a client cannot forge them even though they travel over its connection.
  */
-public sealed interface BridgeMessage permits BridgeMessage.Authenticated, BridgeMessage.Failed {
+public sealed interface BridgeMessage permits BridgeMessage.Authenticated, BridgeMessage.Failed, BridgeMessage.LicensedLogin {
     UUID playerId();
 
     String username();
@@ -41,6 +41,19 @@ public sealed interface BridgeMessage permits BridgeMessage.Authenticated, Bridg
             Objects.requireNonNull(playerId, "playerId");
             Objects.requireNonNull(username, "username");
             Objects.requireNonNull(reason, "reason");
+            Objects.requireNonNull(detail, "detail");
+        }
+    }
+
+    /**
+     * The player chose to log in with a licensed account and must reconnect, as the proxy decides online mode only
+     * when a connection starts. The proxy transfers 1.20.5+ clients back to the address they connected to, or
+     * disconnects the player with {@code detail}; the auth server kicks the player a few seconds later otherwise.
+     */
+    record LicensedLogin(UUID playerId, String username, long timestamp, String detail) implements BridgeMessage {
+        public LicensedLogin {
+            Objects.requireNonNull(playerId, "playerId");
+            Objects.requireNonNull(username, "username");
             Objects.requireNonNull(detail, "detail");
         }
     }

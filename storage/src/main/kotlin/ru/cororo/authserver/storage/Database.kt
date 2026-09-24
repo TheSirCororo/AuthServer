@@ -136,5 +136,11 @@ internal object Migrations {
             "CREATE INDEX ${prefix}accounts_registration_ip ON ${prefix}accounts (registration_ip)",
             "CREATE INDEX ${prefix}accounts_premium_uuid ON ${prefix}accounts (premium_uuid)",
         ),
+        // Email and two-factor authentication.
+        listOf(
+            "ALTER TABLE ${prefix}accounts ADD COLUMN email VARCHAR(254)",
+            "ALTER TABLE ${prefix}accounts ADD COLUMN two_factor VARCHAR(8) DEFAULT 'NONE' NOT NULL",
+            "ALTER TABLE ${prefix}accounts ADD COLUMN totp_secret VARCHAR(64)",
+        ),
     )
 }

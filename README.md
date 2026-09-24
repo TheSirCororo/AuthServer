@@ -5,8 +5,10 @@ register, and are then sent on to the real servers. It supports **every Java Edi
 natively, without ViaVersion.
 
 - **Licensed and offline accounts.** Licensed players are authenticated through Mojang; offline ("cracked")
-  players use `/register` and `/login`, as with AuthMe. Premium name protection keeps offline players off names
-  that belong to licensed accounts.
+  players use `/register` and `/login`, as with AuthMe. By default new players choose their kind of login in a menu;
+  premium name protection can instead keep offline players off names that belong to licensed accounts. An account
+  never changes kind by itself: licensed accounts cannot log in with a password and password accounts cannot log in
+  through Mojang.
 - **Velocity integration.** A Velocity plugin decides online/offline mode at pre-login, keeps unauthenticated
   players in the limbo and routes them afterwards: random, least-players, round-robin or first server, with
   separate groups for licensed and offline players. Other Velocity plugins get events and an API.
@@ -14,6 +16,8 @@ natively, without ViaVersion.
   Anvil world. Blocks are translated per client version, so a 26.3 map works on 1.8: missing blocks become
   similar old ones (cherry stairs -> oak stairs, red concrete -> red wool), the way ViaBackwards does it.
 - **Databases.** SQLite, H2 or PostgreSQL. Passwords are hashed with Argon2id.
+- **Two-factor authentication and email.** Players choose for themselves: codes from an authenticator app (TOTP) or
+  by email after the password. A linked email also recovers a forgotten password.
 - **Account import** from AuthMe, LimboAuth, BungeeAuth, SimpleLogin, AuthSystem and xLogin. Their hashes (SHA256,
   BCRYPT, ARGON2, PBKDF2, Whirlpool, xAuth, nLogin SHA512, ...) are accepted and upgraded to Argon2id on login.
 - **Items and menus.** A help compass in the hotbar explains how to log in; when both licensed and offline login
@@ -47,6 +51,26 @@ file. Console commands: `help`, `list`, `kick`, `plugins`, `stop`, `import` (bel
 Player commands: `/register <password> <password>` (`/reg`), `/login <password>` (`/l`),
 `/changepassword <old> <new>`, `/unregister <password>` and `/premium` (switch an account to licensed login).
 
+### Two-factor authentication and email
+
+Every player decides how to protect their account; the commands work in the limbo after logging in and, behind
+Velocity, on every other server:
+
+- `/2fa totp` shows a key for an authenticator app (Google Authenticator, Aegis, 2FAS, ...), `/2fa confirm <code>`
+  turns it on. From then on the login asks for `/code <code>` after the password (or the Mojang login). Each code
+  works once.
+- `/email set <address> <password>` and `/email confirm <code>` link an address; `/2fa email` then sends login codes
+  there instead.
+- `/2fa off <code>` turns it off again - it needs a current code, so a hijacked session cannot. Changing the email
+  needs the password. Five wrong passwords or codes lock these commands for five minutes.
+- `/recover` mails a code for a forgotten password: `/recover <code> <new password> <new password>`. Accounts with
+  an authenticator app still need its code afterwards.
+
+Email needs an SMTP account in the `email` section of `config.yml`; without it `/email` and `/recover` are hidden
+and authenticator apps still work. Codes are six digits, valid for `code-minutes`, at most one per `resend-seconds`
+per account. Administrators can reset players in the console: `auth 2fa <name> off`, `auth email <name> <address|off>`.
+Imports keep AuthMe's email addresses and the authenticator secrets of AuthMe and LimboAuth.
+
 `authentication.licensed-login: false` turns licensed login off completely: everyone registers with a password,
 `/premium` and the login menu disappear, and the Velocity plugin forces offline mode for every player.
 `authentication.login-menu` and `authentication.help-item` control the join menu and the help item.
@@ -69,10 +93,18 @@ hashed on the first login (only for plugins that really stored plain text).
 ### Standalone
 
 Players connect straight to the auth server (`proxy.forwarding: NONE`). `authentication.premium-policy` decides
-how names without an account authenticate: `OFFLINE` (everyone registers), `AUTO` (names owned by a licensed
-account must log in through Mojang) or `ONLINE` (licensed players only). Offline connections of 1.20.5+ clients are
-encrypted, so passwords never travel in clear text. With `transfer.host` set, authenticated 1.20.5+ players are
-transferred to that server.
+how names without an account authenticate:
+
+- `MANUAL` (default): new players join without Mojang and choose in a menu (or with `/premium`). A password login
+  means `/register`; a licensed login makes the player reconnect - 1.20.5+ clients are transferred back
+  automatically - and that one connection goes through Mojang. Only a verified player gets a licensed account; if
+  the licensed login fails, the player is back offline and chooses again.
+- `OFFLINE`: everyone registers with a password.
+- `AUTO`: names owned by a licensed Mojang account must log in through Mojang, others register.
+- `ONLINE`: licensed players only.
+
+Offline connections of 1.20.5+ clients are encrypted, so passwords never travel in clear text. With `transfer.host`
+set, authenticated 1.20.5+ players are transferred to that server.
 
 ### Behind Velocity
 
@@ -86,12 +118,18 @@ transferred to that server.
 At pre-login the plugin asks the auth server how the name authenticates and forces Velocity into online or offline
 mode. Players land on the auth server; after they log in, the auth server sends a signed (HMAC-SHA256) message
 through the player's connection and the plugin routes them. Unauthenticated players cannot switch servers, and a
-kick from the auth server never falls back to another server. With `premium-bypass = true` licensed players skip
-the auth server entirely.
+kick from the auth server never falls back to another server. Until they log in they also have no proxy
+permissions (whatever permission plugin is installed - LuckPerms or another - its permissions are wrapped) and the
+proxy runs none of their commands (they go to the auth server): before the password check an offline player is just
+a name anyone can type. Proxy plugins that react to players in other ways (chat relays, join messages) should check
+`AuthServerApi.get().isAuthenticated(player)`. With `premium-bypass = true` licensed players skip
+the auth server entirely. When a player picks the licensed login (`MANUAL` policy), the plugin transfers 1.20.5+
+clients back through the proxy if `licensed-transfer = true` (this needs `accepts-transfers = true` in the
+`[advanced]` section of `velocity.toml`); other players are asked to reconnect.
 
 On every other server the plugin adds `/changepassword <old> <new>` (`/cp`), which asks for confirmation with
-`/changepassword confirm`, and `/logout`, which sends the player back to the auth server. Both go through the auth
-server's HTTP API; on the auth server itself the auth server's own commands are used.
+`/changepassword confirm`, `/logout`, which sends the player back to the auth server, and `/2fa` and `/email`. They go
+through the auth server's HTTP API; on the auth server itself the auth server's own commands are used.
 
 ### Test stand
 

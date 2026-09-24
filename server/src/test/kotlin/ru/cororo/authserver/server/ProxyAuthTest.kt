@@ -1,5 +1,8 @@
 package ru.cororo.authserver.server
 
+import kotlin.test.assertNull
+import ru.cororo.authserver.protocol.ProtocolVersion.MINECRAFT_1_21_4
+import kotlinx.coroutines.runBlocking
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
@@ -20,6 +23,7 @@ import ru.cororo.authserver.protocol.buffer.writeVarInt
 import ru.cororo.authserver.server.auth.offlineUuid
 import ru.cororo.authserver.server.config.ApiConfig
 import ru.cororo.authserver.server.config.ForwardingMode
+import ru.cororo.authserver.server.config.PremiumPolicy
 import ru.cororo.authserver.server.config.ProxyConfig
 import java.net.URI
 import java.net.http.HttpClient
@@ -89,6 +93,28 @@ class ProxyAuthTest {
     }
 
     @Test
+    fun `a licensed choice behind velocity asks the proxy to reconnect the player through mojang`() {
+        velocityServer().use { test ->
+            test.client(MINECRAFT_1_21_4, "Buyer").use { client ->
+                client.onLoginQuery = { forwarding(offlineUuid("Buyer"), "Buyer") }
+                client.connect()
+                client.await { client.screen != null }
+                val window = client.screen!!.windowId
+                client.click(window, 15)
+                client.await { client.windows[window]?.get(13) != null }
+                client.click(window, 13)
+                val message = assertIs<BridgeMessage.LicensedLogin>(client.awaitBridge(bridge))
+                assertEquals("Buyer", message.username)
+                assertContains(message.detail, "Reconnect")
+                assertNull(client.transfer, "Behind a proxy the plugin transfers the player")
+            }
+            // The next pre-login goes online, once.
+            assertTrue(runBlocking { test.server.premium.status("Buyer") }.onlineMode)
+            assertEquals(false, runBlocking { test.server.premium.status("Buyer") }.onlineMode)
+        }
+    }
+
+    @Test
     fun `forged velocity data is rejected`() {
         velocityServer().use { test ->
             test.client(MINECRAFT_1_20_3, "Mallory").use { client ->
@@ -116,7 +142,10 @@ class ProxyAuthTest {
     @Test
     fun `http api reports the login mode`() {
         TestServer(FakeMojang(mapOf("Notch" to UUID.randomUUID()))) { config ->
-            config.copy(proxy = ProxyConfig(ForwardingMode.VELOCITY, secret), api = ApiConfig(enabled = true, port = freePort()))
+            config.copy(
+                proxy = ProxyConfig(ForwardingMode.VELOCITY, secret), api = ApiConfig(enabled = true, port = freePort()),
+                authentication = config.authentication.copy(premiumPolicy = PremiumPolicy.AUTO),
+            )
         }.use { test ->
             test.server.auth.register("Steve", "secret-pass").get()
             val http = HttpClient.newHttpClient()

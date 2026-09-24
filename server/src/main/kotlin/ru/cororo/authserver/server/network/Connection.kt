@@ -43,6 +43,13 @@ class Connection(val channel: Channel) : SimpleChannelInboundHandler<Packet>() {
     @Volatile
     var address: InetSocketAddress = channel.remoteAddress() as InetSocketAddress
 
+    /**
+     * Address and port the player typed to reach this server, from the handshake; used to send the player back here
+     * with a transfer. `null` behind a proxy, where the handshake carries the proxy's data instead.
+     */
+    @Volatile
+    var virtualHost: InetSocketAddress? = null
+
     @Volatile
     var closing = false
         private set
